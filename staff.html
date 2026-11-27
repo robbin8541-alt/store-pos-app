@@ -81,6 +81,7 @@
       & .text-white:not(.btn-primary):not([class*='bg-emerald-']):not([class*='bg-sky-']):not([class*='bg-rose-']):not([class*='bg-amber-']), & .text-slate-100, & .text-slate-200 { color: #0f172a !important; }
       & .text-slate-300, & .text-slate-400 { color: #475569 !important; }
       & #eodDiscrepancyWarningBanner { background-color: #fef2f2 !important; border-color: #dc2626 !important; color: #991b1b !important; }
+      & #eodDuplicateNotice { background-color: #fef2f2 !important; border-color: #dc2626 !important; color: #991b1b !important; }
     }
 
     @media (max-width: 767px) {
@@ -117,7 +118,7 @@
   <header class="sticky top-0 z-30 border-b border-[#1b3a5c] bg-[#061626]/90 backdrop-blur-md px-3 py-2.5 shadow-lg">
     <div class="flex flex-wrap items-center justify-between gap-2">
       <div class="flex items-center gap-2.5">
-        <img id="hdrLogoImg" src="logo.png" alt="Logo" class="h-11 w-auto rounded-xl object-contain" />
+        <img id="hdrLogoImg" src="logo.png" onerror="this.style.display='none'" alt="Logo" class="h-11 w-auto rounded-xl object-contain" />
         <div>
           <div class="flex items-center gap-2">
             <h1 id="hdrBrandName" class="text-sm sm:text-base font-black">החנות שלי</h1>
@@ -152,12 +153,13 @@
   <main class="max-w-5xl mx-auto px-3 pt-4 space-y-4">
     <div id="mustAckBannerBox" class="hidden space-y-2"></div>
 
+    <!-- 1. סגירת קופה + מחשבון שטרות -->
     <section id="stab-closing" class="staff-tab-pane space-y-4">
       <div class="card p-4 sm:p-5 space-y-4">
         <div class="flex flex-wrap items-center justify-between gap-2 border-b border-[#1b3a5c] pb-3">
           <div>
             <h2 class="text-base sm:text-lg font-black">סגירת קופה בסוף יום</h2>
-            <p class="text-xs text-slate-400">כולל נעילת כפילות ליום שכבר נסגר, פיצול אמצעי תשלום, קיזוז קופה קטנה, מחשבון שטרות ושליחה לוואטסאפ</p>
+            <p class="text-xs text-slate-400">נעילת כפילות ליום סגור, פיצול אמצעי תשלום, קיזוז קופה קטנה, מחשבון שטרות ושליחה לוואטסאפ</p>
           </div>
           <div id="eodModeSwitch" class="flex items-center bg-[#051321] p-1 rounded-xl border border-[#23476e]">
             <button type="button" id="eodSubFormBtn" onclick="switchEodSub('form')" class="sub-pill active">טופס סגירה</button>
@@ -169,7 +171,7 @@
           <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
               <label class="block text-xs font-bold mb-1">תאריך יום עבודה</label>
-              <input id="eodDateInput" type="date" onchange="checkSelectedDayClosed()" class="input-dark text-sm font-bold" />
+              <input id="eodDateInput" type="date" onchange="onEodDateOrRegisterChange()" class="input-dark text-sm font-bold" />
               <div id="eodDuplicateNotice" class="hidden mt-1.5 p-2 rounded-lg bg-rose-500/15 border border-rose-500/50 text-rose-300 text-xs font-extrabold">
                 🔒 סוף יום לתאריך וקופה זו כבר בוצע — לא ניתן לבצע סגירה כפולה על אותו יום
               </div>
@@ -196,6 +198,7 @@
             </div>
             <input id="eodOcrFile" type="file" accept="image/*" capture="environment" onchange="runEodOcr(this)" class="hidden" />
             <button type="button" onclick="document.getElementById('eodOcrFile').click()" class="w-full sm:w-auto px-4 py-2 rounded-xl btn-primary text-xs font-extrabold">צלם / בחר תמונה לסריקה</button>
+            <div id="eodOcrChips" class="flex flex-wrap gap-1.5"></div>
           </div>
 
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -254,9 +257,10 @@
           </div>
           <div class="grid grid-cols-3 gap-2 text-center text-xs">
             <div class="p-3 rounded-xl bg-[#07192b] border border-[#1b3a5c]"><div class="text-slate-400">סה״כ במגירה</div><div id="calcDrawerTotal" class="text-base font-black tabular-nums">0 ₪</div></div>
-            <div class="p-3 rounded-xl bg-[#07192b] border border-sky-500/40"><div class="text-slate-400">נשאר בקופה</div><div id="calcKeepTotal" class="text-base font-black text-sky-400 tabular-nums">500 ₪</div></div>
+            <div class="p-3 rounded-xl bg-[#07192b] border border-sky-500/40"><div class="text-slate-400">נשאר בקופה בפועל</div><div id="calcKeepTotal" class="text-base font-black text-sky-400 tabular-nums">500 ₪</div></div>
             <div class="p-3 rounded-xl bg-[#07192b] border border-emerald-500/40"><div class="text-slate-400">למעטפה</div><div id="calcEnvTotal" class="text-base font-black text-emerald-400 tabular-nums">0 ₪</div></div>
           </div>
+          <div id="calcFloatWarning" class="hidden p-3 rounded-xl bg-amber-500/15 border border-amber-500/50 text-amber-300 text-xs font-bold"></div>
           <div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
             <div class="p-3 rounded-xl bg-[#07192b] border border-sky-500/40"><div class="font-black text-sky-400 mb-1">להשאיר בקופה:</div><div id="calcKeepList" class="space-y-1"></div></div>
             <div class="p-3 rounded-xl bg-[#07192b] border border-emerald-500/40"><div class="font-black text-emerald-400 mb-1">להכניס למעטפה:</div><div id="calcEnvList" class="space-y-1"></div></div>
@@ -268,6 +272,7 @@
       </div>
     </section>
 
+    <!-- 2. קופה קטנה -->
     <section id="stab-petty" class="staff-tab-pane hidden space-y-4">
       <div class="card p-4 sm:p-5 space-y-4">
         <h2 class="text-base sm:text-lg font-black">קופה קטנה (תשלום מהמגירה)</h2>
@@ -285,6 +290,7 @@
       </div>
     </section>
 
+    <!-- 3. שעון נוכחות GPS -->
     <section id="stab-attendance" class="staff-tab-pane hidden space-y-4">
       <div class="card p-4 sm:p-5 space-y-4">
         <div class="flex flex-wrap items-center justify-between gap-2">
@@ -303,6 +309,7 @@
       </div>
     </section>
 
+    <!-- 4. תפיסת משמרות -->
     <section id="stab-shifts" class="staff-tab-pane hidden space-y-4">
       <div class="card p-4 sm:p-5 space-y-4">
         <h2 class="text-base sm:text-lg font-black">לוח משמרות ותפיסת משמרות פנויות</h2>
@@ -314,6 +321,7 @@
       </div>
     </section>
 
+    <!-- 5. מסירת משמרת -->
     <section id="stab-handover" class="staff-tab-pane hidden space-y-4">
       <div class="card p-4 sm:p-5 space-y-4">
         <h2 class="text-base sm:text-lg font-black">מסירת משמרת (Shift Handover)</h2>
@@ -327,6 +335,7 @@
       </div>
     </section>
 
+    <!-- 6. חוסרים ותקלות -->
     <section id="stab-issues" class="staff-tab-pane hidden space-y-4">
       <div class="card p-4 sm:p-5 space-y-4">
         <h2 class="text-base sm:text-lg font-black">דיווח חוסרים ותקלות</h2>
@@ -347,6 +356,7 @@
       </div>
     </section>
 
+    <!-- 7. הודעות צוות -->
     <section id="stab-messages" class="staff-tab-pane hidden space-y-4">
       <div class="card p-4 sm:p-5 space-y-4">
         <h2 class="text-base sm:text-lg font-black">הודעות צוות</h2>
@@ -360,6 +370,7 @@
       </div>
     </section>
 
+    <!-- אזור מנהל סניף -->
     <section id="panelMgrSection" class="hidden space-y-4">
       <div class="card p-4 sm:p-5 space-y-4 border-emerald-500/40">
         <div class="flex flex-wrap items-center justify-between gap-2 border-b border-[#1b3a5c] pb-3">
@@ -377,8 +388,10 @@
         <div id="mgrPane-closings" class="mgr-sub-pane space-y-3">
           <div class="flex flex-wrap items-center justify-between gap-2 text-xs">
             <div class="flex flex-wrap items-center gap-3" id="closingsColToggles"></div>
-            <input id="unlockDateInp" type="date" class="input-dark !w-auto text-xs !min-h-[32px] py-0.5" />
-            <button type="button" onclick="unlockSelectedDate()" class="px-3 py-1.5 rounded-xl bg-amber-600 text-white font-bold text-xs">פתח יום שננעל</button>
+            <div class="flex items-center gap-1.5">
+              <input id="unlockDateInp" type="date" class="input-dark !w-auto text-xs !min-h-[32px] py-0.5" />
+              <button type="button" onclick="unlockSelectedDate()" class="px-3 py-1.5 rounded-xl bg-amber-600 text-white font-bold text-xs">פתח יום שננעל</button>
+            </div>
           </div>
           <div class="overflow-x-auto">
             <table id="mgrClosingsTable" class="w-full text-xs text-right responsive-table">
@@ -399,8 +412,20 @@
           <div id="mgrShiftsApprovalsBox" class="space-y-2 text-xs"></div>
         </div>
 
-        <div id="mgrPane-staff" class="mgr-sub-pane hidden space-y-2" id="mgrStaffPhonesBox"></div>
-        <div id="mgrPane-issues" class="mgr-sub-pane hidden space-y-2" id="mgrIssuesManageBox"></div>
+        <div id="mgrPane-staff" class="mgr-sub-pane hidden space-y-3">
+          <div class="grid grid-cols-1 sm:grid-cols-5 gap-2">
+            <input id="stNameInp" type="text" placeholder="שם עובד" class="input-dark text-xs font-bold" />
+            <select id="stCatInp" class="input-dark text-xs font-bold"><option value="מוכרים">מוכרים</option><option value="ניקיון">ניקיון</option><option value="מזדמנים">מזדמנים</option></select>
+            <input id="stPhoneInp" type="tel" placeholder="טלפון" class="input-dark text-xs" />
+            <input id="stRateInp" type="number" placeholder="שכר שעתי (₪)" class="input-dark text-xs" />
+            <button type="button" onclick="saveStaffFromMgr()" class="bg-emerald-600 text-white rounded-xl text-xs font-black py-2">+ שמור עובד</button>
+          </div>
+          <div id="mgrStaffPhonesBox" class="space-y-2 text-xs"></div>
+        </div>
+
+        <div id="mgrPane-issues" class="mgr-sub-pane hidden space-y-2">
+          <div id="mgrIssuesManageBox" class="space-y-2 text-xs"></div>
+        </div>
 
         <div id="mgrPane-tasks" class="mgr-sub-pane hidden space-y-3">
           <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
@@ -453,7 +478,7 @@
   </div>
 
   <div id="toastBar" class="hidden fixed bottom-5 left-1/2 -translate-x-1/2 z-[1000] px-4 py-2 rounded-full bg-emerald-600 text-white text-xs font-bold shadow-xl"></div>
-<script>
+  <script>
     const _storeMem = {};
     function sGet(k, def = null) {
       try { const v = window.localStorage.getItem(k); return v !== null ? v : def; }
@@ -475,6 +500,7 @@
     let appState = {
       scriptUrl: sGet("store_script_url") || (window.STORE_BRAND_CONFIG && window.STORE_BRAND_CONFIG.scriptUrl) || DEFAULT_WEB_APP_URL,
       roleMode: "staff",
+      managerPinVerified: "",
       activeStaffTab: "closing",
       activeMgrSub: "closings",
       branchId: sGet("store_selected_branch") || (new URLSearchParams(window.location.search).get("branch")) || "main",
@@ -521,14 +547,12 @@
 
     function applyBrandAndModules() {
       const cfg = appState.config || {};
-      if (cfg.primaryColor) {
-        document.documentElement.style.setProperty("--brand-primary", cfg.primaryColor);
-      }
+      if (cfg.primaryColor) document.documentElement.style.setProperty("--brand-primary", cfg.primaryColor);
       document.title = (cfg.brandName || "החנות שלי") + " — מוכר ומנהל סניף";
       document.getElementById("hdrBrandName").textContent = cfg.brandName || "החנות שלי";
       document.getElementById("hdrTagline").textContent = cfg.tagline || "ממשק מוכר ומנהל סניף";
       const logo = document.getElementById("hdrLogoImg");
-      if (logo && cfg.logoUrl) logo.src = cfg.logoUrl;
+      if (logo && cfg.logoUrl) { logo.src = cfg.logoUrl; logo.style.display = ""; }
 
       const branches = Array.isArray(cfg.branches) && cfg.branches.length ? cfg.branches : [{ id: "main", name: "סניף ראשי", registers: ["קופה 1"] }];
       const bSel = document.getElementById("branchSelect");
@@ -554,7 +578,7 @@
 
       const floatVal = Number(cfg.openingFloat) || 500;
       document.getElementById("calcFloatDisplay").textContent = floatVal.toLocaleString() + " ₪";
-      document.getElementById("calcKeepTotal").textContent = floatVal.toLocaleString() + " ₪";
+      recalcDenomCalc();
     }
 
     function populateRegistersForBranch() {
@@ -571,13 +595,12 @@
       sSet("store_selected_branch", appState.branchId);
       populateRegistersForBranch();
       fetchStoreData();
-      checkSelectedDayClosed();
     }
 
     function onRegisterChange() {
       appState.registerName = document.getElementById("registerSelect").value;
       sSet("store_selected_register", appState.registerName);
-      checkSelectedDayClosed();
+      onEodDateOrRegisterChange();
     }
 
     function setDefaultEodDate() {
@@ -588,12 +611,31 @@
       const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
       const inp = document.getElementById("eodDateInput");
       if (inp && !inp.value) inp.value = iso;
+      onEodDateOrRegisterChange();
     }
 
     function isoToIsraeli(iso) {
       if (!iso || !/^\d{4}-\d{2}-\d{2}$/.test(iso)) return iso || "";
       const [y, m, d] = iso.split("-");
       return `${d}/${m}/${y}`;
+    }
+
+    function autoFillPettyForSelectedDay() {
+      if (appState.config.modules?.pettyCash === false) return;
+      const dateStr = isoToIsraeli(document.getElementById("eodDateInput")?.value || "");
+      const pettySum = (appState.pettyCash || [])
+        .filter(p => String(p.date).trim() === dateStr && String(p.branchId || "main") === appState.branchId && String(p.register || "קופה 1") === appState.registerName)
+        .reduce((s, p) => s + (Number(p.amount) || 0), 0);
+      const pInp = document.getElementById("eodPettyCash");
+      if (pInp && pettySum > 0 && !pInp.dataset.manual) {
+        pInp.value = Math.round(pettySum * 100) / 100;
+      }
+    }
+
+    function onEodDateOrRegisterChange() {
+      autoFillPettyForSelectedDay();
+      checkSelectedDayClosed();
+      recalcEodSummary();
     }
 
     function checkSelectedDayClosed() {
@@ -603,7 +645,7 @@
         String(c.date).trim() === dateStr &&
         String(c.branchId || "main").trim() === appState.branchId &&
         String(c.register || "קופה 1").trim() === appState.registerName &&
-        c.locked !== false
+        c.locked === true
       );
       const isClosed = Boolean(match);
       document.getElementById("eodDuplicateNotice")?.classList.toggle("hidden", !isClosed);
@@ -678,8 +720,75 @@
       recalcDenomCalc();
     }
 
+    function solveSmartFloat(counts, targetCents) {
+      const takeMap = {};
+      DENOMS_ASC.forEach(v => takeMap[v] = 0);
+      if (targetCents <= 0) return { takeMap, achievedCents: 0, exact: true };
+
+      let cur = 0;
+      DENOMS_ASC.forEach(v => {
+        const avail = counts[v] || 0;
+        const unit = Math.round(v * 100);
+        if (!avail || !unit || cur >= targetCents) return;
+        const n = Math.min(avail, Math.floor((targetCents - cur) / unit));
+        if (n > 0) { takeMap[v] = n; cur += n * unit; }
+      });
+      if (cur === targetCents) return { takeMap, achievedCents: cur, exact: true };
+
+      const step = 10;
+      const maxU = Math.min(15000, Math.round(targetCents / step) + 150);
+      const tgtU = Math.round(targetCents / step);
+      const items = [];
+      DENOMS_ASC.forEach((v, idx) => {
+        const qty = Math.min(counts[v] || 0, 60);
+        const u = Math.round((v * 100) / step);
+        for (let k = 0; k < qty; k++) items.push({ denom: v, units: u, prio: 10 - idx });
+      });
+
+      const dp = new Array(maxU + 1).fill(null);
+      dp[0] = { score: 0, prev: -1, itemIdx: -1 };
+      for (let i = 0; i < items.length; i++) {
+        const it = items[i];
+        if (it.units > maxU) continue;
+        for (let s = maxU - it.units; s >= 0; s--) {
+          if (!dp[s]) continue;
+          const ns = s + it.units;
+          const sc = dp[s].score + it.prio * 100;
+          if (!dp[ns] || sc > dp[ns].score) dp[ns] = { score: sc, prev: s, itemIdx: i };
+        }
+      }
+
+      let best = 0;
+      if (dp[tgtU]) best = tgtU;
+      else {
+        let diff = Infinity;
+        for (let s = 0; s <= maxU; s++) {
+          if (!dp[s]) continue;
+          const d = Math.abs(s - tgtU);
+          if (d < diff) { diff = d; best = s; }
+        }
+      }
+      if (best > 0 && dp[best]) {
+        const rebuilt = {};
+        DENOMS_ASC.forEach(v => rebuilt[v] = 0);
+        let c = best;
+        const seen = new Set();
+        while (c > 0 && dp[c] && dp[c].itemIdx >= 0 && !seen.has(c)) {
+          seen.add(c);
+          const it = items[dp[c].itemIdx];
+          rebuilt[it.denom] = (rebuilt[it.denom] || 0) + 1;
+          c = dp[c].prev;
+        }
+        return { takeMap: rebuilt, achievedCents: best * step, exact: best === tgtU };
+      }
+      return { takeMap, achievedCents: cur, exact: cur === targetCents };
+    }
+
     function recalcDenomCalc() {
-      const targetCents = Math.round((Number(appState.config.openingFloat) || 500) * 100);
+      const floatTarget = Number(appState.config.openingFloat) || 500;
+      const targetCents = Math.round(floatTarget * 100);
+      document.getElementById("calcFloatDisplay").textContent = floatTarget.toLocaleString() + " ₪";
+
       let totalCents = 0;
       const counts = {};
       DENOMS_ASC.forEach(v => {
@@ -692,24 +801,33 @@
         if (tEl) tEl.textContent = (sub / 100).toLocaleString() + " ₪";
       });
 
-      let remTarget = targetCents;
+      const sol = solveSmartFloat(counts, targetCents);
       const keepList = [], envList = [];
       DENOMS_ASC.forEach(v => {
         const q = counts[v] || 0;
         if (!q) return;
-        const unit = Math.round(v * 100);
-        const take = Math.min(q, Math.floor(remTarget / unit));
-        remTarget -= take * unit;
+        const take = Math.min(q, sol.takeMap[v] || 0);
         const toEnv = q - take;
         if (take > 0) keepList.push(`${take} × ${fmtDenom(v)} (${(take * v).toLocaleString()} ₪)`);
         if (toEnv > 0) envList.push(`${toEnv} × ${fmtDenom(v)} (${(toEnv * v).toLocaleString()} ₪)`);
       });
 
-      const keptCents = targetCents - remTarget;
-      const envNet = Math.max(0, Math.round((totalCents - keptCents) / 100 * 100) / 100);
+      const keptShekels = sol.achievedCents / 100;
+      const envNet = Math.max(0, Math.round((totalCents - sol.achievedCents) / 100 * 100) / 100);
       appState.lastCalcEnv = envNet;
+
       document.getElementById("calcDrawerTotal").textContent = (totalCents / 100).toLocaleString() + " ₪";
+      document.getElementById("calcKeepTotal").textContent = keptShekels.toLocaleString() + " ₪";
       document.getElementById("calcEnvTotal").textContent = envNet.toLocaleString() + " ₪";
+
+      const warn = document.getElementById("calcFloatWarning");
+      if (totalCents > 0 && !sol.exact) {
+        warn.classList.remove("hidden");
+        warn.textContent = `אין צירוף מדויק לפריטת ${floatTarget.toLocaleString()} ₪ — נשאר בקופה ${keptShekels.toLocaleString()} ₪ (הקרוב ביותר).`;
+      } else {
+        warn.classList.add("hidden");
+      }
+
       document.getElementById("calcKeepList").innerHTML = keepList.length ? keepList.join("<br/>") : "הזן כמויות";
       document.getElementById("calcEnvList").innerHTML = envList.length ? [...envList].reverse().join("<br/>") : "אין יתרה";
     }
@@ -722,24 +840,58 @@
       showToast("הועבר למעטפה ✓");
     }
 
-    function onEodPhotoPick(inp, kind) {
+    function compressImageFile(file, maxSide = 1100, quality = 0.72) {
+      return new Promise((resolve, reject) => {
+        if (file && file.type && file.type.startsWith("image/")) {
+          const img = new Image();
+          const url = URL.createObjectURL(file);
+          img.onload = () => {
+            const scale = Math.min(1, maxSide / Math.max(img.width, img.height));
+            const canvas = document.createElement("canvas");
+            canvas.width = Math.round(img.width * scale);
+            canvas.height = Math.round(img.height * scale);
+            canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
+            URL.revokeObjectURL(url);
+            resolve(canvas.toDataURL("image/jpeg", quality));
+          };
+          img.onerror = () => {
+            URL.revokeObjectURL(url);
+            const r = new FileReader();
+            r.onload = () => resolve(r.result);
+            r.onerror = reject;
+            r.readAsDataURL(file);
+          };
+          img.src = url;
+        } else {
+          const r = new FileReader();
+          r.onload = () => resolve(r.result);
+          r.onerror = reject;
+          r.readAsDataURL(file);
+        }
+      });
+    }
+
+    async function onEodPhotoPick(inp, kind) {
       if (!inp.files || !inp.files[0]) return;
-      const r = new FileReader();
-      r.onload = () => {
-        if (kind === "z") { appState.zPhotoBase64 = r.result; document.getElementById("eodZBadge").textContent = "נבחר ✓"; document.getElementById("eodZBadge").className = "text-emerald-400"; }
-        else { appState.envPhotoBase64 = r.result; document.getElementById("eodEnvBadge").textContent = "נבחר ✓"; document.getElementById("eodEnvBadge").className = "text-emerald-400"; }
-      };
-      r.readAsDataURL(inp.files[0]);
+      const b64 = await compressImageFile(inp.files[0]);
+      if (kind === "z") { appState.zPhotoBase64 = b64; document.getElementById("eodZBadge").textContent = "נבחר ✓"; document.getElementById("eodZBadge").className = "text-emerald-400"; }
+      else { appState.envPhotoBase64 = b64; document.getElementById("eodEnvBadge").textContent = "נבחר ✓"; document.getElementById("eodEnvBadge").className = "text-emerald-400"; }
     }
 
     async function runEodOcr(inp) {
       if (!inp.files || !inp.files[0]) return;
       const st = document.getElementById("eodOcrStatus");
+      const chips = document.getElementById("eodOcrChips");
       st.textContent = "סורק...";
+      chips.innerHTML = "";
       try {
         const res = await Tesseract.recognize(inp.files[0], "eng");
-        const nums = (res.data.text || "").match(/\d{1,5}[.,]\d{2}/g) || [];
-        st.textContent = nums.length ? "זוהו סכומים: " + nums.slice(0, 4).join(", ") : "הזן סכומים ידנית";
+        const nums = [...new Set((res.data.text || "").match(/\d{1,5}[.,]\d{2}/g) || [])].slice(0, 6);
+        st.textContent = nums.length ? "זוהו סכומים — לחץ לשיבוץ:" : "הזן סכומים ידנית";
+        chips.innerHTML = nums.map(n => {
+          const val = parseFloat(n.replace(",", "."));
+          return `<span class="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-[#051321] border border-[#23476e] text-xs"><strong>${val} ₪</strong> <button type="button" onclick="document.getElementById('eodReceiptCash').value=${val};recalcEodSummary()" class="text-emerald-400 font-bold">מזומן Z</button> <button type="button" onclick="document.getElementById('eodCredit').value=${val};recalcEodSummary()" class="text-sky-400 font-bold">אשראי</button></span>`;
+        }).join("");
       } catch (e) { st.textContent = "שגיאה בסריקה"; }
     }
 
@@ -778,8 +930,7 @@
     async function confirmEodSave() {
       if (![...document.querySelectorAll(".eod-task-chk")].every(c => c.checked)) return;
       closeEodChecklist();
-      const iso = document.getElementById("eodDateInput").value;
-      const dateStr = isoToIsraeli(iso);
+      const dateStr = isoToIsraeli(document.getElementById("eodDateInput").value);
       const sellerName = document.getElementById("eodSellerInput").value.trim();
       const cashZ = Number(document.getElementById("eodReceiptCash").value) || 0;
       const envCash = Number(document.getElementById("eodEnvelopeCash").value) || 0;
@@ -802,18 +953,14 @@
         receiptCash: cashZ,
         envelopeCash: envCash,
         pettyCash: petty,
-        credit,
-        bitPaybox: bit,
-        vouchers: vouch,
-        bankTransfer: bank,
-        refunds: ref,
+        credit, bitPaybox: bit, vouchers: vouch, bankTransfer: bank, refunds: ref,
         note: document.getElementById("eodNoteInput").value.trim(),
         receiptPhotoBase64: appState.zPhotoBase64,
         envelopePhotoBase64: appState.envPhotoBase64
       };
 
       if (appState.sendWaAfterSave) {
-        const brName = (appState.config.branches.find(b => b.id === appState.branchId) || {}).name || appState.branchId;
+        const brName = ((appState.config.branches || []).find(b => b.id === appState.branchId) || {}).name || appState.branchId;
         const msg = [
           `סגירת קופה — ${appState.config.brandName}`,
           `תאריך: ${dateStr}`,
@@ -836,14 +983,20 @@
         checkSelectedDayClosed();
         return showToast(res.error || "היום כבר נסגר");
       }
+
       appState.zPhotoBase64 = ""; appState.envPhotoBase64 = "";
       document.getElementById("eodZBadge").textContent = "לא נבחר";
       document.getElementById("eodEnvBadge").textContent = "לא נבחר";
+      ["eodReceiptCash","eodEnvelopeCash","eodPettyCash","eodCredit","eodBitPaybox","eodVouchers","eodBankTransfer","eodRefunds","eodNoteInput"].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) { el.value = ""; delete el.dataset.manual; }
+      });
+      recalcEodSummary();
       showToast("סגירת היום נשמרה ✓");
       fetchStoreData();
     }
 
-    function onPettyFilePick(inp) { if (inp.files && inp.files[0]) { const r = new FileReader(); r.onload = () => appState.pettyPhotoBase64 = r.result; r.readAsDataURL(inp.files[0]); } }
+    async function onPettyFilePick(inp) { if (inp.files && inp.files[0]) appState.pettyPhotoBase64 = await compressImageFile(inp.files[0]); }
     async function submitPettyCash() {
       const amount = Number(document.getElementById("pettyAmountInp").value) || 0;
       const purpose = document.getElementById("pettyPurposeInp").value.trim();
@@ -870,7 +1023,8 @@
       const dateStr = isoToIsraeli(document.getElementById("eodDateInput").value);
       const payload = { action: "clockAttendance", punchType, date: dateStr, branchId: appState.branchId, employeeName, note: document.getElementById("attNoteInp").value.trim() };
       if (appState.lastCoords) { payload.lat = appState.lastCoords.lat; payload.lng = appState.lastCoords.lng; }
-      await dispatchAction(payload);
+      const res = await dispatchAction(payload);
+      if (res && res.ok === false && res.error) return showToast(res.error);
       document.getElementById("attNoteInp").value = "";
       showToast(punchType === "in" ? "כניסה למשמרת נרשמה ✓" : "יציאה ממשמרת נרשמה ✓");
       fetchStoreData();
@@ -892,7 +1046,7 @@
       showToast("מסירת משמרת נשמרה ✓"); fetchStoreData();
     }
 
-    function onIssueFilePick(inp) { if (inp.files && inp.files[0]) { const r = new FileReader(); r.onload = () => appState.issuePhotoBase64 = r.result; r.readAsDataURL(inp.files[0]); } }
+    async function onIssueFilePick(inp) { if (inp.files && inp.files[0]) appState.issuePhotoBase64 = await compressImageFile(inp.files[0]); }
     async function submitIssue() {
       const desc = document.getElementById("issDescInp").value.trim();
       if (!desc) return showToast("כתוב תיאור");
@@ -915,7 +1069,6 @@
       showToast("אישרת קריאה ✓"); fetchStoreData();
     }
 
-    // תור שמירה לא מקוונת (Offline Queue)
     function getOfflineQueue() {
       try { return JSON.parse(sGet(OFFLINE_QUEUE_KEY) || "[]"); } catch (e) { return []; }
     }
@@ -929,6 +1082,7 @@
     }
 
     async function dispatchAction(payload) {
+      const hasHeavy = Boolean(payload.receiptPhotoBase64 || payload.envelopePhotoBase64 || payload.photoBase64);
       if (appState.config.modules?.offlineQueue !== false && !navigator.onLine) {
         const q = getOfflineQueue();
         q.push(payload);
@@ -938,6 +1092,14 @@
       }
       setLoading(true);
       try {
+        if (hasHeavy) {
+          const res = await fetch(appState.scriptUrl, {
+            method: "POST",
+            headers: { "Content-Type": "text/plain;charset=utf-8" },
+            body: JSON.stringify(payload)
+          });
+          return await res.json();
+        }
         const res = await fetch(appState.scriptUrl + "?payload=" + encodeURIComponent(JSON.stringify(payload)));
         return await res.json();
       } catch (e) {
@@ -957,8 +1119,14 @@
       if (!q.length || !navigator.onLine) return;
       const rem = [];
       for (const item of q) {
-        try { await fetch(appState.scriptUrl + "?payload=" + encodeURIComponent(JSON.stringify(item))); }
-        catch (e) { rem.push(item); }
+        try {
+          const hasHeavy = Boolean(item.receiptPhotoBase64 || item.envelopePhotoBase64 || item.photoBase64);
+          if (hasHeavy) {
+            await fetch(appState.scriptUrl, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify(item) });
+          } else {
+            await fetch(appState.scriptUrl + "?payload=" + encodeURIComponent(JSON.stringify(item)));
+          }
+        } catch (e) { rem.push(item); }
       }
       saveOfflineQueue(rem);
       if (!rem.length) { showToast("כל הדיווחים הממתינים סונכרנו ✓"); fetchStoreData(); }
@@ -983,7 +1151,7 @@
           appState.issues = data.issues || [];
           appState.staff = data.staff || [];
           renderAllStaffViews();
-          checkSelectedDayClosed();
+          onEodDateOrRegisterChange();
         }
       } catch (e) {} finally { setLoading(false); }
     }
@@ -1039,6 +1207,7 @@
       if (!pin) return;
       const res = await dispatchAction({ action: "verifyPin", role: "manager", pin });
       if (res && res.ok) {
+        appState.managerPinVerified = pin;
         document.getElementById("pinPromptModal").classList.add("hidden");
         appState.roleMode = "manager";
         document.body.classList.add("mgr-mode");
@@ -1098,7 +1267,7 @@
           <td data-label="קופה קטנה" data-col="petty" class="text-sky-400 tabular-nums">${Number(c.pettyCash).toLocaleString()} ₪</td>
           <td data-label="הפרש" data-col="diff" class="font-bold tabular-nums">${Number(c.diff).toLocaleString()} ₪</td>
           <td data-label="סה״כ" data-col="total" class="font-black tabular-nums">${Number(c.totalSales).toLocaleString()} ₪</td>
-          <td data-label="אושר" data-col="approved" class="text-center"><input type="checkbox" ${c.approved ? "checked" : ""} onchange="toggleApproval(${c.rowNumber}, this.checked)" /></td>
+          <td data-label="אושר" data-col="approved" class="text-center"><input type="checkbox" ${c.approved ? "checked" : ""} onchange="toggleApproval('${c.id}', this.checked)" /></td>
         </tr>`).join("") || '<tr><td colspan="8" class="py-4 text-center text-slate-400">אין סגירות</td></tr>';
         applyColVisibility();
       }
@@ -1108,15 +1277,23 @@
         return `<div class="p-2.5 rounded-xl bg-[#051321] border border-[#1b3a5c] flex justify-between items-center"><span><strong>${s.date}</strong> (${s.startTime}–${s.endTime}) • <strong>${s.employee || "פנוי"}</strong> [${s.status}]</span>${pending ? `<button type="button" onclick="approveClaim('${s.id}')" class="px-3 py-1 rounded-lg bg-emerald-600 text-white font-bold">אשר משמרת ✓</button>` : ""}</div>`;
       }).join("");
 
-      document.getElementById("mgrPane-staff").innerHTML = (appState.staff || []).map(st => `<div class="p-2.5 rounded-xl bg-[#051321] border border-[#1b3a5c] flex justify-between"><span><strong>${st.name}</strong> (${st.category}) • ${st.phone || "ללא טלפון"}</span>${st.phone ? `<a href="https://wa.me/${st.phone.replace(/[^0-9]/g, "")}" target="_blank" class="text-emerald-400 font-bold">וואטסאפ</a>` : ""}</div>`).join("") || '<div class="text-slate-400">אין עובדים רשומים</div>';
-      document.getElementById("mgrPane-issues").innerHTML = (appState.issues || []).map(i => `<div class="p-2.5 rounded-xl bg-[#051321] border border-[#1b3a5c] flex justify-between"><span><strong>[${i.kind}]</strong> ${i.description} (${i.status})</span>${i.status !== "טופל" ? `<button type="button" onclick="resolveIssue('${i.id}')" class="px-2.5 py-1 rounded bg-emerald-600 text-white font-bold">טופל ✓</button>` : ""}</div>`).join("") || '<div class="text-slate-400">אין חוסרים ותקלות</div>';
+      document.getElementById("mgrStaffPhonesBox").innerHTML = (appState.staff || []).map(st => `<div class="p-2.5 rounded-xl bg-[#051321] border border-[#1b3a5c] flex justify-between"><span><strong>${st.name}</strong> (${st.category}) • ${st.phone || "ללא טלפון"} • ${st.hourlyRate || 35} ₪/שע׳</span>${st.phone ? `<a href="https://wa.me/${st.phone.replace(/[^0-9]/g, "")}" target="_blank" class="text-emerald-400 font-bold">וואטסאפ</a>` : ""}</div>`).join("") || '<div class="text-slate-400">אין עובדים רשומים</div>';
+      document.getElementById("mgrIssuesManageBox").innerHTML = (appState.issues || []).map(i => `<div class="p-2.5 rounded-xl bg-[#051321] border border-[#1b3a5c] flex justify-between"><span><strong>[${i.kind}]</strong> ${i.description} (${i.status})</span>${i.status !== "טופל" ? `<button type="button" onclick="resolveIssue('${i.id}')" class="px-2.5 py-1 rounded bg-emerald-600 text-white font-bold">טופל ✓</button>` : ""}</div>`).join("") || '<div class="text-slate-400">אין חוסרים ותקלות</div>';
       document.getElementById("mgrAnnouncementsStatusBox").innerHTML = (appState.announcements || []).slice().reverse().map(a => `<div class="p-2.5 rounded-xl bg-[#051321] border border-[#1b3a5c]"><strong>${a.message}</strong> <span class="text-slate-400">• נקרא ע״י: ${a.ackBy || "טרם נקרא"}</span></div>`).join("");
     }
 
-    async function toggleApproval(rowNumber, val) { await dispatchAction({ action: "toggleEodApproval", pin: document.getElementById("mgrPinInp").value, rowNumber, value: val, branchId: appState.branchId }); }
-    async function unlockSelectedDate() { const d = isoToIsraeli(document.getElementById("unlockDateInp").value); if (!d) return showToast("בחר תאריך"); await dispatchAction({ action: "unlockEodDay", pin: document.getElementById("mgrPinInp").value, date: d, branchId: appState.branchId }); showToast("היום נפתח לעריכה ✓"); fetchStoreData(); }
+    async function saveStaffFromMgr() {
+      const name = document.getElementById("stNameInp").value.trim();
+      if (!name) return showToast("הזן שם עובד");
+      await dispatchAction({ action: "saveStaffMember", pin: appState.managerPinVerified, name, category: document.getElementById("stCatInp").value, phone: document.getElementById("stPhoneInp").value.trim(), hourlyRate: Number(document.getElementById("stRateInp").value) || 35, branchId: appState.branchId });
+      document.getElementById("stNameInp").value = ""; document.getElementById("stPhoneInp").value = ""; document.getElementById("stRateInp").value = "";
+      showToast("עובד נשמר ✓"); fetchStoreData();
+    }
+
+    async function toggleApproval(id, val) { await dispatchAction({ action: "toggleEodApproval", pin: appState.managerPinVerified, id, value: val, branchId: appState.branchId }); }
+    async function unlockSelectedDate() { const d = isoToIsraeli(document.getElementById("unlockDateInp").value); if (!d) return showToast("בחר תאריך"); await dispatchAction({ action: "unlockEodDay", pin: appState.managerPinVerified, date: d, branchId: appState.branchId, registerName: appState.registerName }); showToast("היום נפתח לעריכה ✓"); fetchStoreData(); }
     async function createShiftSlot() { const d = isoToIsraeli(document.getElementById("newShiftDate").value); if (!d) return showToast("בחר תאריך"); const emp = document.getElementById("newShiftEmp").value.trim(); await dispatchAction({ action: "saveShiftOrClaim", date: d, branchId: appState.branchId, employeeName: emp, startTime: document.getElementById("newShiftStart").value, endTime: document.getElementById("newShiftEnd").value, status: emp ? "משובץ" : "פנוי לתפיסה" }); showToast("המשמרת נוספה ✓"); fetchStoreData(); }
-    async function approveClaim(shiftId) { await dispatchAction({ action: "approveShiftClaim", pin: document.getElementById("mgrPinInp").value, shiftId, approved: true }); showToast("המשמרת אושרה ✓"); fetchStoreData(); }
+    async function approveClaim(shiftId) { await dispatchAction({ action: "approveShiftClaim", pin: appState.managerPinVerified, shiftId, approved: true }); showToast("המשמרת אושרה ✓"); fetchStoreData(); }
     async function resolveIssue(id) { await dispatchAction({ action: "resolveIssueOrShortage", id, status: "טופל" }); showToast("סומן כטופל ✓"); fetchStoreData(); }
     async function publishAnnouncement() { const msg = document.getElementById("annTextInp").value.trim(); if (!msg) return; await dispatchAction({ action: "addAnnouncement", branchId: appState.branchId, sender: document.getElementById("annSenderInp").value.trim() || "מנהל סניף", recipient: document.getElementById("annRecipientInp").value.trim() || "כולם", mustAck: document.getElementById("annMustAckChk").checked, message: msg }); document.getElementById("annTextInp").value = ""; showToast("ההודעה פורסמה ✓"); fetchStoreData(); }
 
