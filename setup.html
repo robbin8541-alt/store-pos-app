@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl" translate="no" class="notranslate">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="google" content="notranslate" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>אשף הקמת חנות — White-Label</title>
+  <meta name="color-scheme" content="light dark" />
+  <meta name="theme-color" content="#0b192c" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;700;800;900&display=swap" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="brand-config.js"></script>
+  <style>
+    body {
+      font-family: 'Heebo', sans-serif; min-height: 100dvh;
+      background-color: light-dark(#f1f5f9, #0b192c);
+      color: light-dark(#0f172a, #f8fafc);
+    }
+    .card {
+      background: light-dark(#ffffff, #13253e);
+      border: 1px solid light-dark(#cbd5e1, #1e3a5f);
+      border-radius: 16px;
+      box-shadow: 0 8px 24px -12px rgba(15,23,42,0.16);
+    }
+    .input-dark {
+      background: light-dark(#f8fafc, #091322);
+      border: 1px solid light-dark(#cbd5e1, #26466d);
+      color: light-dark(#0f172a, #ffffff);
+      border-radius: 12px; padding: 0.55rem 0.75rem; width: 100%; min-height: 40px;
+    }
+  </style>
+</head>
+<body class="p-4 sm:p-6">
+  <div class="max-w-3xl mx-auto space-y-5">
+    <div class="card p-5 flex flex-wrap items-center justify-between gap-3">
+      <div>
+        <span class="text-[11px] font-black px-2.5 py-0.5 rounded-full bg-orange-500/15 text-orange-500 border border-orange-500/30">הקמה מהירה</span>
+        <h1 class="text-xl font-black mt-1">אשף הקמת חנות / רשת חדשה</h1>
+        <p class="text-xs text-slate-500 dark:text-slate-400">חיבור ל-Web App, הגדרת מיתוג, סניפים וקופות והפקת קישורים מוכנים</p>
+      </div>
+      <div class="flex gap-2">
+        <a href="staff.html" class="px-3.5 py-2 rounded-xl bg-slate-200 dark:bg-slate-800 text-xs font-extrabold">לממשק מוכר</a>
+        <a href="owner.html" class="px-3.5 py-2 rounded-xl bg-orange-600 text-white text-xs font-extrabold">לדשבורד בעלים</a>
+      </div>
+    </div>
+
+    <div class="card p-5 space-y-4">
+      <h2 class="text-base font-black border-b border-slate-200 dark:border-[#1e3a5f] pb-2">1. חיבור שרת ומיתוג העסק</h2>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+        <div class="sm:col-span-2">
+          <label class="block font-bold mb-1">כתובת Web App של הלקוח (Apps Script .../exec)</label>
+          <input id="setupScriptUrl" type="url" dir="ltr" placeholder="https://script.google.com/macros/s/.../exec" class="input-dark font-mono" />
+        </div>
+        <div>
+          <label class="block font-bold mb-1">שם העסק / המותג</label>
+          <input id="setupBrandName" type="text" placeholder="למשל: מכולת השכונה / רשת נווה" class="input-dark font-bold" />
+        </div>
+        <div>
+          <label class="block font-bold mb-1">סלוגן / תיאור קצר</label>
+          <input id="setupTagline" type="text" placeholder="ניהול קופה, עובדים וסניפים" class="input-dark" />
+        </div>
+        <div>
+          <label class="block font-bold mb-1">כתובת / שם קובץ לוגו</label>
+          <input id="setupLogoUrl" type="text" value="logo.png" class="input-dark" />
+        </div>
+        <div>
+          <label class="block font-bold mb-1">צבע ראשי של המותג</label>
+          <div class="flex items-center gap-2">
+            <input id="setupPrimaryColor" type="color" value="#ea580c" class="w-12 h-10 rounded-lg cursor-pointer" />
+            <input id="setupPrimaryHex" type="text" value="#ea580c" oninput="document.getElementById('setupPrimaryColor').value=this.value" class="input-dark font-mono" />
+          </div>
+        </div>
+      </div>
+
+      <h2 class="text-base font-black border-b border-slate-200 dark:border-[#1e3a5f] pb-2 pt-2">2. הגדרת סניפים וקופות (אופציונלי — ריבוי סניפים)</h2>
+      <div class="space-y-2 text-xs">
+        <label class="block font-bold">רשימת סניפים וקופות (שורה לכל סניף בפורמט: שם סניף | קופה 1, קופה 2 | קו רוחב | קו אורך)</label>
+        <textarea id="setupBranchesText" rows="3" class="input-dark font-mono text-xs">סניף ראשי | קופה 1, קופה 2 |  | </textarea>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+        <div><label class="block font-bold mb-1">פתיחת קופה ברירת מחדל (₪)</label><input id="setupOpeningFloat" type="number" value="500" class="input-dark text-center font-black" /></div>
+        <div><label class="block font-bold mb-1">יעד חודשי (₪)</label><input id="setupMonthlyTarget" type="number" value="75000" class="input-dark text-center font-black" /></div>
+        <div><label class="block font-bold mb-1">שעת החלפת יום עסקים</label><input id="setupCutoffHour" type="number" min="0" max="12" value="8" class="input-dark text-center font-black" /></div>
+      </div>
+
+      <div class="flex flex-wrap justify-end gap-2 pt-2">
+        <button type="button" onclick="applySetupLocallyAndSync()" class="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black">החל הגדרות ושמור בשרת ✓</button>
+      </div>
+    </div>
+
+    <div id="setupOutputCard" class="card p-5 space-y-3 hidden">
+      <h2 class="text-base font-black text-emerald-500">3. קישורים וקוד `brand-config.js` מוכנים</h2>
+      <div id="setupGeneratedLinks" class="space-y-2 text-xs"></div>
+      <div>
+        <label class="block text-xs font-bold mb-1">קוד `brand-config.js` להעתקה (אם תרצה לשמור קובץ ייעודי ללקוח):</label>
+        <pre id="setupConfigSnippet" class="p-3 rounded-xl bg-slate-100 dark:bg-[#091322] text-[11px] overflow-x-auto"></pre>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      const cfg = window.STORE_BRAND_CONFIG || {};
+      const savedUrl = localStorage.getItem("store_script_url") || cfg.scriptUrl || "";
+      document.getElementById("setupScriptUrl").value = savedUrl;
+      document.getElementById("setupBrandName").value = cfg.brandName || "החנות שלי";
+      document.getElementById("setupTagline").value = cfg.tagline || "מערכת ניהול קופה, עובדים וסניפים";
+      document.getElementById("setupLogoUrl").value = cfg.logoUrl || "logo.png";
+      document.getElementById("setupPrimaryColor").value = cfg.primaryColor || "#ea580c";
+      document.getElementById("setupPrimaryHex").value = cfg.primaryColor || "#ea580c";
+      document.getElementById("setupOpeningFloat").value = cfg.defaultOpeningFloat ?? 500;
+      document.getElementById("setupMonthlyTarget").value = cfg.defaultMonthlyTarget ?? 75000;
+      document.getElementById("setupCutoffHour").value = cfg.defaultCutoffHour ?? 8;
+      if (Array.isArray(cfg.branches) && cfg.branches.length) {
+        document.getElementById("setupBranchesText").value = cfg.branches.map(b =>
+          `${b.name} | ${(b.registers || ["קופה 1"]).join(", ")} | ${b.lat || ""} | ${b.lng || ""}`
+        ).join("\n");
+      }
+      document.getElementById("setupPrimaryColor").addEventListener("input", e => {
+        document.getElementById("setupPrimaryHex").value = e.target.value;
+      });
+    });
+
+    function parseBranchesLines(raw) {
+      const lines = String(raw || "").split("\n").map(l => l.trim()).filter(Boolean);
+      const list = lines.map((line, idx) => {
+        const parts = line.split("|").map(s => s.trim());
+        const name = parts[0] || ("סניף " + (idx + 1));
+        const regs = (parts[1] || "קופה 1").split(",").map(s => s.trim()).filter(Boolean);
+        return {
+          id: idx === 0 ? "main" : ("br_" + (idx + 1)),
+          name,
+          registers: regs.length ? regs : ["קופה 1"],
+          lat: parts[2] || "",
+          lng: parts[3] || "",
+          radiusMeters: 150
+        };
+      });
+      return list.length ? list : [{ id: "main", name: "סניף ראשי", registers: ["קופה 1"], lat: "", lng: "", radiusMeters: 150 }];
+    }
+
+    async function applySetupLocallyAndSync() {
+      const scriptUrl = document.getElementById("setupScriptUrl").value.trim();
+      const brandName = document.getElementById("setupBrandName").value.trim() || "החנות שלי";
+      const tagline = document.getElementById("setupTagline").value.trim();
+      const logoUrl = document.getElementById("setupLogoUrl").value.trim() || "logo.png";
+      const primaryColor = document.getElementById("setupPrimaryHex").value.trim() || "#ea580c";
+      const openingFloat = Number(document.getElementById("setupOpeningFloat").value) || 500;
+      const monthlyTarget = Number(document.getElementById("setupMonthlyTarget").value) || 75000;
+      const cutoffHour = Math.max(0, Math.min(12, Number(document.getElementById("setupCutoffHour").value) || 8));
+      const branches = parseBranchesLines(document.getElementById("setupBranchesText").value);
+
+      if (scriptUrl && scriptUrl.startsWith("https://")) {
+        localStorage.setItem("store_script_url", scriptUrl);
+      }
+      localStorage.setItem("store_selected_branch", branches[0].id);
+
+      const snippetObj = {
+        scriptUrl,
+        brandName,
+        tagline,
+        logoUrl,
+        primaryColor,
+        defaultOpeningFloat: openingFloat,
+        defaultMonthlyTarget: monthlyTarget,
+        defaultCutoffHour: cutoffHour,
+        branches
+      };
+
+      if (scriptUrl && scriptUrl.startsWith("https://")) {
+        try {
+          await fetch(scriptUrl + "?payload=" + encodeURIComponent(JSON.stringify({
+            action: "saveConfigAndModules",
+            pin: "2222",
+            config: { brandName, tagline, logoUrl, primaryColor, openingFloat, monthlyTarget, cutoffHour },
+            branches
+          })));
+        } catch (e) {}
+      }
+
+      const baseDir = window.location.href.replace(/setup\.html.*$/i, "").replace(/\/?$/, "/");
+      const outCard = document.getElementById("setupOutputCard");
+      outCard.classList.remove("hidden");
+      document.getElementById("setupGeneratedLinks").innerHTML = `
+        <div class="p-2.5 rounded-xl bg-slate-100 dark:bg-[#091322]"><strong>קישור מוכר / קופה:</strong> <a href="${baseDir}staff.html" target="_blank" class="text-sky-500 underline">${baseDir}staff.html</a></div>
+        <div class="p-2.5 rounded-xl bg-slate-100 dark:bg-[#091322]"><strong>קישור בעלים:</strong> <a href="${baseDir}owner.html" target="_blank" class="text-orange-500 underline">${baseDir}owner.html</a></div>
+      `;
+      document.getElementById("setupConfigSnippet").textContent =
+        "window.STORE_BRAND_CONFIG = Object.assign({}, window.STORE_BRAND_CONFIG || {}, " +
+        JSON.stringify(snippetObj, null, 2) + ");";
+      alert("ההגדרות נשמרו מקומית ונשלחו לשרת ✓");
+    }
+  </script>
+</body>
+</html>
