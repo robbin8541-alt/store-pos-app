@@ -453,3 +453,677 @@
   </div>
 
   <div id="toastBar" class="hidden fixed bottom-5 left-1/2 -translate-x-1/2 z-[1000] px-4 py-2 rounded-full bg-emerald-600 text-white text-xs font-bold shadow-xl"></div>
+<script>
+    const _storeMem = {};
+    function sGet(k, def = null) {
+      try { const v = window.localStorage.getItem(k); return v !== null ? v : def; }
+      catch (e) { return _storeMem[k] !== undefined ? _storeMem[k] : def; }
+    }
+    function sSet(k, v) {
+      try { window.localStorage.setItem(k, String(v)); }
+      catch (e) { _storeMem[k] = String(v); }
+    }
+
+    const DEFAULT_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbyuHKs-w1Vngfw6Vu4V5SqXSJ4oaKqqIRCmpLCfXDE-etrYq3acKHBKKn16ebES2gp6/exec";
+    const OFFLINE_QUEUE_KEY = "store_offline_queue_v1";
+    const COLS_PREF_KEY = "store_mgr_closings_cols_v1";
+
+    const BILLS = [200, 100, 50, 20];
+    const COINS = [10, 5, 2, 1, 0.5, 0.1];
+    const DENOMS_ASC = [0.1, 0.5, 1, 2, 5, 10, 20, 50, 100, 200];
+
+    let appState = {
+      scriptUrl: sGet("store_script_url") || (window.STORE_BRAND_CONFIG && window.STORE_BRAND_CONFIG.scriptUrl) || DEFAULT_WEB_APP_URL,
+      roleMode: "staff",
+      activeStaffTab: "closing",
+      activeMgrSub: "closings",
+      branchId: sGet("store_selected_branch") || (new URLSearchParams(window.location.search).get("branch")) || "main",
+      registerName: sGet("store_selected_register") || "קופה 1",
+      config: Object.assign({
+        brandName: "החנות שלי",
+        tagline: "ממשק מוכר ומנהל סניף",
+        logoUrl: "logo.png",
+        primaryColor: "#ea580c",
+        openingFloat: 500,
+        discrepancyWarningEnabled: true,
+        discrepancyWarningThreshold: 20,
+        branches: [{ id: "main", name: "סניף ראשי", registers: ["קופה 1"], lat: "", lng: "", radiusMeters: 150 }],
+        modules: {}
+      }, window.STORE_BRAND_CONFIG || {}),
+      closings: [],
+      pettyCash: [],
+      attendance: [],
+      shifts: [],
+      handovers: [],
+      announcements: [],
+      issues: [],
+      staff: [],
+      zPhotoBase64: "",
+      envPhotoBase64: "",
+      pettyPhotoBase64: "",
+      issuePhotoBase64: "",
+      sendWaAfterSave: false,
+      lastCalcEnv: 0,
+      lastCoords: null,
+      visibleCols: JSON.parse(sGet(COLS_PREF_KEY) || '{"date":true,"branch":true,"seller":true,"env":true,"petty":true,"diff":true,"total":true,"approved":true}')
+    };
+
+    document.addEventListener("DOMContentLoaded", () => {
+      applyBrandAndModules();
+      buildDenomCalcUI();
+      buildColToggles();
+      setDefaultEodDate();
+      requestGeoLocation();
+      updateOfflineBadge();
+      fetchStoreData();
+      window.addEventListener("online", () => flushOfflineQueue());
+    });
+
+    function applyBrandAndModules() {
+      const cfg = appState.config || {};
+      if (cfg.primaryColor) {
+        document.documentElement.style.setProperty("--brand-primary", cfg.primaryColor);
+      }
+      document.title = (cfg.brandName || "החנות שלי") + " — מוכר ומנהל סניף";
+      document.getElementById("hdrBrandName").textContent = cfg.brandName || "החנות שלי";
+      document.getElementById("hdrTagline").textContent = cfg.tagline || "ממשק מוכר ומנהל סניף";
+      const logo = document.getElementById("hdrLogoImg");
+      if (logo && cfg.logoUrl) logo.src = cfg.logoUrl;
+
+      const branches = Array.isArray(cfg.branches) && cfg.branches.length ? cfg.branches : [{ id: "main", name: "סניף ראשי", registers: ["קופה 1"] }];
+      const bSel = document.getElementById("branchSelect");
+      bSel.innerHTML = branches.map(b => `<option value="${b.id}" ${b.id === appState.branchId ? "selected" : ""}>${b.name}</option>`).join("");
+      if (!branches.some(b => b.id === appState.branchId)) appState.branchId = branches[0].id;
+      populateRegistersForBranch();
+
+      const m = cfg.modules || {};
+      const showTab = (id, enabled) => {
+        const el = document.getElementById(id);
+        if (el) el.classList.toggle("hidden", enabled === false);
+      };
+      showTab("snav-closing", m.eodClosing !== false);
+      showTab("eodModeSwitch", m.cashCalculator !== false);
+      showTab("eodPettyFieldWrap", m.pettyCash !== false);
+      showTab("eodSplitPaymentsBox", m.splitPayments !== false);
+      showTab("snav-petty", m.pettyCash !== false);
+      showTab("snav-attendance", m.attendanceGps !== false);
+      showTab("snav-shifts", m.shiftSchedule !== false || m.shiftClaiming !== false);
+      showTab("snav-handover", m.shiftHandover !== false);
+      showTab("snav-messages", m.announcements !== false);
+      showTab("snav-issues", m.shortagesAndFaults !== false);
+
+      const floatVal = Number(cfg.openingFloat) || 500;
+      document.getElementById("calcFloatDisplay").textContent = floatVal.toLocaleString() + " ₪";
+      document.getElementById("calcKeepTotal").textContent = floatVal.toLocaleString() + " ₪";
+    }
+
+    function populateRegistersForBranch() {
+      const branches = appState.config.branches || [];
+      const curBr = branches.find(b => b.id === appState.branchId) || branches[0];
+      const regs = (curBr && Array.isArray(curBr.registers) && curBr.registers.length) ? curBr.registers : ["קופה 1"];
+      const rSel = document.getElementById("registerSelect");
+      if (!regs.includes(appState.registerName)) appState.registerName = regs[0];
+      rSel.innerHTML = regs.map(r => `<option value="${r}" ${r === appState.registerName ? "selected" : ""}>${r}</option>`).join("");
+    }
+
+    function onBranchChange() {
+      appState.branchId = document.getElementById("branchSelect").value;
+      sSet("store_selected_branch", appState.branchId);
+      populateRegistersForBranch();
+      fetchStoreData();
+      checkSelectedDayClosed();
+    }
+
+    function onRegisterChange() {
+      appState.registerName = document.getElementById("registerSelect").value;
+      sSet("store_selected_register", appState.registerName);
+      checkSelectedDayClosed();
+    }
+
+    function setDefaultEodDate() {
+      const now = new Date();
+      const cutoff = Number(appState.config.cutoffHour ?? 8);
+      const d = new Date(now.getTime());
+      if (now.getHours() < cutoff) d.setDate(d.getDate() - 1);
+      const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+      const inp = document.getElementById("eodDateInput");
+      if (inp && !inp.value) inp.value = iso;
+    }
+
+    function isoToIsraeli(iso) {
+      if (!iso || !/^\d{4}-\d{2}-\d{2}$/.test(iso)) return iso || "";
+      const [y, m, d] = iso.split("-");
+      return `${d}/${m}/${y}`;
+    }
+
+    function checkSelectedDayClosed() {
+      const iso = document.getElementById("eodDateInput")?.value || "";
+      const dateStr = isoToIsraeli(iso);
+      const match = (appState.closings || []).find(c =>
+        String(c.date).trim() === dateStr &&
+        String(c.branchId || "main").trim() === appState.branchId &&
+        String(c.register || "קופה 1").trim() === appState.registerName &&
+        c.locked !== false
+      );
+      const isClosed = Boolean(match);
+      document.getElementById("eodDuplicateNotice")?.classList.toggle("hidden", !isClosed);
+      ["btnOpenEodCheck", "btnOpenEodCheckWa"].forEach(id => {
+        const b = document.getElementById(id);
+        if (!b) return;
+        b.disabled = isClosed;
+        b.classList.toggle("opacity-40", isClosed);
+        b.classList.toggle("cursor-not-allowed", isClosed);
+      });
+      return isClosed;
+    }
+
+    function recalcEodSummary() {
+      const cashZ = Number(document.getElementById("eodReceiptCash")?.value) || 0;
+      const envCash = Number(document.getElementById("eodEnvelopeCash")?.value) || 0;
+      const petty = Number(document.getElementById("eodPettyCash")?.value) || 0;
+      const credit = Number(document.getElementById("eodCredit")?.value) || 0;
+      const bit = Number(document.getElementById("eodBitPaybox")?.value) || 0;
+      const vouch = Number(document.getElementById("eodVouchers")?.value) || 0;
+      const bank = Number(document.getElementById("eodBankTransfer")?.value) || 0;
+      const ref = Number(document.getElementById("eodRefunds")?.value) || 0;
+
+      const total = Math.round((envCash + petty + credit + bit + vouch + bank - ref) * 100) / 100;
+      const diff = Math.round((envCash + petty - cashZ) * 100) / 100;
+
+      document.getElementById("eodTotalSalesLbl").textContent = total.toLocaleString() + " ₪";
+      const diffEl = document.getElementById("eodDiffLbl");
+      diffEl.textContent = `${diff > 0 ? "+" : ""}${diff.toLocaleString()} ₪`;
+      diffEl.className = "text-sm font-black tabular-nums " + (diff === 0 ? "text-emerald-400" : (diff > 0 ? "text-sky-400" : "text-rose-400"));
+    }
+
+    function switchEodSub(sub) {
+      const isCalc = sub === "calc";
+      document.getElementById("eodSubForm").classList.toggle("hidden", isCalc);
+      document.getElementById("eodSubCalc").classList.toggle("hidden", !isCalc);
+      document.getElementById("eodSubFormBtn").classList.toggle("active", !isCalc);
+      document.getElementById("eodSubCalcBtn").classList.toggle("active", isCalc);
+      if (isCalc) recalcDenomCalc();
+    }
+
+    function fmtDenom(v) { return v === 0.1 ? "10 אג׳" : (v === 0.5 ? "½ ₪" : (v + " ₪")); }
+
+    function buildDenomCalcUI() {
+      const mk = v => {
+        const id = "sc_" + String(v).replace(".", "_");
+        return `<div class="flex items-center justify-between gap-2 p-2 rounded-xl bg-[#07192b] border border-[#1b3a5c] text-xs">
+          <span class="font-extrabold min-w-[68px]">${fmtDenom(v)}</span>
+          <div class="flex items-center gap-1.5">
+            <button type="button" onclick="stepSc('${id}',1)" class="w-8 h-8 rounded-lg bg-emerald-600/25 border border-emerald-500/50 text-emerald-300 font-black text-base">+</button>
+            <input id="${id}" type="number" min="0" inputmode="numeric" placeholder="0" oninput="recalcDenomCalc()" class="input-dark !w-14 !min-h-[34px] text-center font-extrabold text-xs !p-1" />
+            <button type="button" onclick="stepSc('${id}',-1)" class="w-8 h-8 rounded-lg bg-rose-600/20 border border-rose-500/40 text-rose-300 font-black text-base">−</button>
+          </div>
+          <span id="${id}_t" class="font-bold tabular-nums min-w-[62px] text-left">0 ₪</span>
+        </div>`;
+      };
+      document.getElementById("denomBillsBox").innerHTML = BILLS.map(mk).join("");
+      document.getElementById("denomCoinsBox").innerHTML = COINS.map(mk).join("");
+    }
+
+    function stepSc(id, delta) {
+      const el = document.getElementById(id);
+      if (!el) return;
+      const next = Math.max(0, (parseInt(el.value || "0", 10) || 0) + delta);
+      el.value = next === 0 ? "" : String(next);
+      recalcDenomCalc();
+    }
+
+    function resetDenomCalc() {
+      DENOMS_ASC.forEach(v => { const el = document.getElementById("sc_" + String(v).replace(".", "_")); if (el) el.value = ""; });
+      appState.lastCalcEnv = 0;
+      recalcDenomCalc();
+    }
+
+    function recalcDenomCalc() {
+      const targetCents = Math.round((Number(appState.config.openingFloat) || 500) * 100);
+      let totalCents = 0;
+      const counts = {};
+      DENOMS_ASC.forEach(v => {
+        const id = "sc_" + String(v).replace(".", "_");
+        const q = Math.max(0, parseInt(document.getElementById(id)?.value || "0", 10) || 0);
+        counts[v] = q;
+        const sub = Math.round(q * v * 100);
+        totalCents += sub;
+        const tEl = document.getElementById(id + "_t");
+        if (tEl) tEl.textContent = (sub / 100).toLocaleString() + " ₪";
+      });
+
+      let remTarget = targetCents;
+      const keepList = [], envList = [];
+      DENOMS_ASC.forEach(v => {
+        const q = counts[v] || 0;
+        if (!q) return;
+        const unit = Math.round(v * 100);
+        const take = Math.min(q, Math.floor(remTarget / unit));
+        remTarget -= take * unit;
+        const toEnv = q - take;
+        if (take > 0) keepList.push(`${take} × ${fmtDenom(v)} (${(take * v).toLocaleString()} ₪)`);
+        if (toEnv > 0) envList.push(`${toEnv} × ${fmtDenom(v)} (${(toEnv * v).toLocaleString()} ₪)`);
+      });
+
+      const keptCents = targetCents - remTarget;
+      const envNet = Math.max(0, Math.round((totalCents - keptCents) / 100 * 100) / 100);
+      appState.lastCalcEnv = envNet;
+      document.getElementById("calcDrawerTotal").textContent = (totalCents / 100).toLocaleString() + " ₪";
+      document.getElementById("calcEnvTotal").textContent = envNet.toLocaleString() + " ₪";
+      document.getElementById("calcKeepList").innerHTML = keepList.length ? keepList.join("<br/>") : "הזן כמויות";
+      document.getElementById("calcEnvList").innerHTML = envList.length ? [...envList].reverse().join("<br/>") : "אין יתרה";
+    }
+
+    function transferCalcToEnvelope() {
+      document.getElementById("eodEnvelopeCash").value = appState.lastCalcEnv;
+      recalcEodSummary();
+      resetDenomCalc();
+      switchEodSub("form");
+      showToast("הועבר למעטפה ✓");
+    }
+
+    function onEodPhotoPick(inp, kind) {
+      if (!inp.files || !inp.files[0]) return;
+      const r = new FileReader();
+      r.onload = () => {
+        if (kind === "z") { appState.zPhotoBase64 = r.result; document.getElementById("eodZBadge").textContent = "נבחר ✓"; document.getElementById("eodZBadge").className = "text-emerald-400"; }
+        else { appState.envPhotoBase64 = r.result; document.getElementById("eodEnvBadge").textContent = "נבחר ✓"; document.getElementById("eodEnvBadge").className = "text-emerald-400"; }
+      };
+      r.readAsDataURL(inp.files[0]);
+    }
+
+    async function runEodOcr(inp) {
+      if (!inp.files || !inp.files[0]) return;
+      const st = document.getElementById("eodOcrStatus");
+      st.textContent = "סורק...";
+      try {
+        const res = await Tesseract.recognize(inp.files[0], "eng");
+        const nums = (res.data.text || "").match(/\d{1,5}[.,]\d{2}/g) || [];
+        st.textContent = nums.length ? "זוהו סכומים: " + nums.slice(0, 4).join(", ") : "הזן סכומים ידנית";
+      } catch (e) { st.textContent = "שגיאה בסריקה"; }
+    }
+
+    function openEodChecklist(withWa) {
+      if (checkSelectedDayClosed()) return showToast("סוף יום לתאריך וקופה זו כבר בוצע");
+      if (!document.getElementById("eodSellerInput").value.trim()) return showToast("יש להזין שם מוכר");
+      if (!appState.zPhotoBase64 || !appState.envPhotoBase64) return showToast("חובה לצרף דוח Z מלא וצילום מעטפה");
+
+      const cashZ = Number(document.getElementById("eodReceiptCash").value) || 0;
+      const envCash = Number(document.getElementById("eodEnvelopeCash").value) || 0;
+      const petty = Number(document.getElementById("eodPettyCash").value) || 0;
+      const diff = Math.round((envCash + petty - cashZ) * 100) / 100;
+      const warn = document.getElementById("eodDiscrepancyWarningBanner");
+      const thresh = Number(appState.config.discrepancyWarningThreshold ?? 20);
+      if (appState.config.discrepancyWarningEnabled !== false && Math.abs(diff) > thresh) {
+        warn.classList.remove("hidden");
+        warn.textContent = `⚠️ אזהרת חוסר/עודף בקופה: ${diff > 0 ? "+" : ""}${diff.toLocaleString()} ₪ (סף: ${thresh} ₪)`;
+      } else {
+        warn.classList.add("hidden");
+      }
+
+      appState.sendWaAfterSave = withWa;
+      document.querySelectorAll(".eod-task-chk").forEach(c => c.checked = false);
+      validateEodCheck();
+      document.getElementById("eodCheckModal").classList.remove("hidden");
+    }
+
+    function closeEodChecklist() { document.getElementById("eodCheckModal").classList.add("hidden"); }
+    function validateEodCheck() {
+      const ok = [...document.querySelectorAll(".eod-task-chk")].every(c => c.checked);
+      const btn = document.getElementById("btnConfirmEodSave");
+      btn.disabled = !ok;
+      btn.classList.toggle("opacity-40", !ok);
+    }
+
+    async function confirmEodSave() {
+      if (![...document.querySelectorAll(".eod-task-chk")].every(c => c.checked)) return;
+      closeEodChecklist();
+      const iso = document.getElementById("eodDateInput").value;
+      const dateStr = isoToIsraeli(iso);
+      const sellerName = document.getElementById("eodSellerInput").value.trim();
+      const cashZ = Number(document.getElementById("eodReceiptCash").value) || 0;
+      const envCash = Number(document.getElementById("eodEnvelopeCash").value) || 0;
+      const petty = Number(document.getElementById("eodPettyCash").value) || 0;
+      const credit = Number(document.getElementById("eodCredit").value) || 0;
+      const bit = Number(document.getElementById("eodBitPaybox").value) || 0;
+      const vouch = Number(document.getElementById("eodVouchers").value) || 0;
+      const bank = Number(document.getElementById("eodBankTransfer").value) || 0;
+      const ref = Number(document.getElementById("eodRefunds").value) || 0;
+      const diff = Math.round((envCash + petty - cashZ) * 100) / 100;
+      const total = Math.round((envCash + petty + credit + bit + vouch + bank - ref) * 100) / 100;
+
+      const payload = {
+        action: "saveEodClosing",
+        date: dateStr,
+        branchId: appState.branchId,
+        registerName: appState.registerName,
+        status: document.getElementById("eodStatusSelect").value,
+        sellerName,
+        receiptCash: cashZ,
+        envelopeCash: envCash,
+        pettyCash: petty,
+        credit,
+        bitPaybox: bit,
+        vouchers: vouch,
+        bankTransfer: bank,
+        refunds: ref,
+        note: document.getElementById("eodNoteInput").value.trim(),
+        receiptPhotoBase64: appState.zPhotoBase64,
+        envelopePhotoBase64: appState.envPhotoBase64
+      };
+
+      if (appState.sendWaAfterSave) {
+        const brName = (appState.config.branches.find(b => b.id === appState.branchId) || {}).name || appState.branchId;
+        const msg = [
+          `סגירת קופה — ${appState.config.brandName}`,
+          `תאריך: ${dateStr}`,
+          `סניף וקופה: ${brName} • ${appState.registerName}`,
+          `מוכר: ${sellerName}`,
+          `מזומן מעטפה: ${envCash.toLocaleString()} ₪`,
+          `קופה קטנה: ${petty.toLocaleString()} ₪`,
+          `מזומן Z: ${cashZ.toLocaleString()} ₪`,
+          `הפרש: ${diff > 0 ? "+" : ""}${diff.toLocaleString()} ₪`,
+          `אשראי: ${credit.toLocaleString()} ₪`,
+          `ביט/פייבוקס: ${bit.toLocaleString()} ₪`,
+          `שוברים/תן ביס: ${vouch.toLocaleString()} ₪`,
+          `סה״כ פדיון: ${total.toLocaleString()} ₪`
+        ].join("\n");
+        window.open("https://api.whatsapp.com/send?text=" + encodeURIComponent(msg), "_blank");
+      }
+
+      const res = await dispatchAction(payload);
+      if (res && res.duplicate) {
+        checkSelectedDayClosed();
+        return showToast(res.error || "היום כבר נסגר");
+      }
+      appState.zPhotoBase64 = ""; appState.envPhotoBase64 = "";
+      document.getElementById("eodZBadge").textContent = "לא נבחר";
+      document.getElementById("eodEnvBadge").textContent = "לא נבחר";
+      showToast("סגירת היום נשמרה ✓");
+      fetchStoreData();
+    }
+
+    function onPettyFilePick(inp) { if (inp.files && inp.files[0]) { const r = new FileReader(); r.onload = () => appState.pettyPhotoBase64 = r.result; r.readAsDataURL(inp.files[0]); } }
+    async function submitPettyCash() {
+      const amount = Number(document.getElementById("pettyAmountInp").value) || 0;
+      const purpose = document.getElementById("pettyPurposeInp").value.trim();
+      const sellerName = document.getElementById("pettySellerInp").value.trim();
+      if (!amount || !purpose) return showToast("הזן סכום ומטרה");
+      const dateStr = isoToIsraeli(document.getElementById("eodDateInput").value);
+      await dispatchAction({ action: "addPettyCash", date: dateStr, branchId: appState.branchId, registerName: appState.registerName, amount, purpose, sellerName, photoBase64: appState.pettyPhotoBase64 });
+      appState.pettyPhotoBase64 = "";
+      document.getElementById("pettyAmountInp").value = ""; document.getElementById("pettyPurposeInp").value = "";
+      showToast("קופה קטנה נרשמה ✓"); fetchStoreData();
+    }
+
+    function requestGeoLocation() {
+      if (!navigator.geolocation) { document.getElementById("gpsStatusPill").textContent = "GPS לא נתמך"; return; }
+      navigator.geolocation.getCurrentPosition(
+        pos => { appState.lastCoords = { lat: pos.coords.latitude, lng: pos.coords.longitude }; document.getElementById("gpsStatusPill").textContent = "GPS פעיל ✓"; },
+        () => { document.getElementById("gpsStatusPill").textContent = "אין הרשאת מיקום"; }
+      );
+    }
+
+    async function submitAttendance(punchType) {
+      const employeeName = document.getElementById("attEmployeeInp").value.trim();
+      if (!employeeName) return showToast("הזן שם עובד");
+      const dateStr = isoToIsraeli(document.getElementById("eodDateInput").value);
+      const payload = { action: "clockAttendance", punchType, date: dateStr, branchId: appState.branchId, employeeName, note: document.getElementById("attNoteInp").value.trim() };
+      if (appState.lastCoords) { payload.lat = appState.lastCoords.lat; payload.lng = appState.lastCoords.lng; }
+      await dispatchAction(payload);
+      document.getElementById("attNoteInp").value = "";
+      showToast(punchType === "in" ? "כניסה למשמרת נרשמה ✓" : "יציאה ממשמרת נרשמה ✓");
+      fetchStoreData();
+    }
+
+    async function claimOpenShift(shiftId) {
+      const emp = document.getElementById("claimEmployeeInp").value.trim();
+      if (!emp) return showToast("הזן קודם את השם שלך למעלה");
+      await dispatchAction({ action: "saveShiftOrClaim", shiftId, employeeName: emp, status: "ממתין לאישור", note: document.getElementById("claimNoteInp").value.trim() });
+      showToast("בקשת תפיסת משמרת נשלחה לאישור מנהל ✓"); fetchStoreData();
+    }
+
+    async function submitHandover() {
+      const fromSeller = document.getElementById("hoFromInp").value.trim();
+      const note = document.getElementById("hoNoteInp").value.trim();
+      if (!note) return showToast("כתוב הערות למסירת משמרת");
+      await dispatchAction({ action: "addHandover", branchId: appState.branchId, fromSeller, toTarget: document.getElementById("hoToInp").value.trim() || "משמרת הבאה", note });
+      document.getElementById("hoNoteInp").value = "";
+      showToast("מסירת משמרת נשמרה ✓"); fetchStoreData();
+    }
+
+    function onIssueFilePick(inp) { if (inp.files && inp.files[0]) { const r = new FileReader(); r.onload = () => appState.issuePhotoBase64 = r.result; r.readAsDataURL(inp.files[0]); } }
+    async function submitIssue() {
+      const desc = document.getElementById("issDescInp").value.trim();
+      if (!desc) return showToast("כתוב תיאור");
+      await dispatchAction({ action: "addIssueOrShortage", branchId: appState.branchId, kind: document.getElementById("issKindSel").value, category: document.getElementById("issCatInp").value.trim(), reporter: document.getElementById("issReporterInp").value.trim(), description: desc, photoBase64: appState.issuePhotoBase64 });
+      appState.issuePhotoBase64 = ""; document.getElementById("issDescInp").value = "";
+      showToast("הדיווח נשלח ✓"); fetchStoreData();
+    }
+
+    async function submitStaffMessage() {
+      const msg = document.getElementById("msgTextInp").value.trim();
+      if (!msg) return;
+      await dispatchAction({ action: "addAnnouncement", branchId: appState.branchId, sender: document.getElementById("msgSenderInp").value.trim() || "מוכר", recipient: document.getElementById("msgRecipientInp").value.trim() || "כולם", mustAck: false, message: msg });
+      document.getElementById("msgTextInp").value = "";
+      showToast("ההודעה נשלחה ✓"); fetchStoreData();
+    }
+
+    async function ackAnnouncementId(id) {
+      const who = document.getElementById("eodSellerInput").value.trim() || document.getElementById("msgSenderInp").value.trim() || "עובד";
+      await dispatchAction({ action: "ackAnnouncement", id, employeeName: who });
+      showToast("אישרת קריאה ✓"); fetchStoreData();
+    }
+
+    // תור שמירה לא מקוונת (Offline Queue)
+    function getOfflineQueue() {
+      try { return JSON.parse(sGet(OFFLINE_QUEUE_KEY) || "[]"); } catch (e) { return []; }
+    }
+    function saveOfflineQueue(q) { sSet(OFFLINE_QUEUE_KEY, JSON.stringify(q)); updateOfflineBadge(); }
+    function updateOfflineBadge() {
+      const q = getOfflineQueue();
+      const b = document.getElementById("offlineQueueBadge");
+      if (!b) return;
+      b.textContent = `ממתין לסנכרון (${q.length})`;
+      b.classList.toggle("hidden", q.length === 0);
+    }
+
+    async function dispatchAction(payload) {
+      if (appState.config.modules?.offlineQueue !== false && !navigator.onLine) {
+        const q = getOfflineQueue();
+        q.push(payload);
+        saveOfflineQueue(q);
+        showToast("אין אינטרנט — נשמר בתור לסנכרון אוטומטי");
+        return { ok: true, queued: true };
+      }
+      setLoading(true);
+      try {
+        const res = await fetch(appState.scriptUrl + "?payload=" + encodeURIComponent(JSON.stringify(payload)));
+        return await res.json();
+      } catch (e) {
+        if (appState.config.modules?.offlineQueue !== false) {
+          const q = getOfflineQueue();
+          q.push(payload);
+          saveOfflineQueue(q);
+          showToast("שגיאת רשת — נשמר לתור סנכרון");
+          return { ok: true, queued: true };
+        }
+        return { ok: false, error: e.toString() };
+      } finally { setLoading(false); }
+    }
+
+    async function flushOfflineQueue() {
+      const q = getOfflineQueue();
+      if (!q.length || !navigator.onLine) return;
+      const rem = [];
+      for (const item of q) {
+        try { await fetch(appState.scriptUrl + "?payload=" + encodeURIComponent(JSON.stringify(item))); }
+        catch (e) { rem.push(item); }
+      }
+      saveOfflineQueue(rem);
+      if (!rem.length) { showToast("כל הדיווחים הממתינים סונכרנו ✓"); fetchStoreData(); }
+    }
+
+    async function fetchStoreData() {
+      setLoading(true);
+      try {
+        const res = await fetch(`${appState.scriptUrl}?action=getState&branchId=${encodeURIComponent(appState.branchId)}&role=${appState.roleMode}`);
+        const data = await res.json();
+        if (data && data.ok) {
+          if (data.config) {
+            appState.config = Object.assign({}, appState.config, data.config);
+            applyBrandAndModules();
+          }
+          appState.closings = data.closings || [];
+          appState.pettyCash = data.pettyCash || [];
+          appState.attendance = data.attendance || [];
+          appState.shifts = data.shifts || [];
+          appState.handovers = data.handovers || [];
+          appState.announcements = data.announcements || [];
+          appState.issues = data.issues || [];
+          appState.staff = data.staff || [];
+          renderAllStaffViews();
+          checkSelectedDayClosed();
+        }
+      } catch (e) {} finally { setLoading(false); }
+    }
+
+    function renderAllStaffViews() {
+      const names = [...new Set((appState.staff || []).map(s => s.name).filter(Boolean))];
+      document.getElementById("staffNamesDatalist").innerHTML = names.map(n => `<option value="${n}"></option>`).join("");
+
+      const urgent = (appState.announcements || []).filter(a => a.mustAck);
+      const ackBox = document.getElementById("mustAckBannerBox");
+      if (ackBox) {
+        ackBox.classList.toggle("hidden", !urgent.length);
+        ackBox.innerHTML = urgent.map(a => `<div class="card p-3 border-amber-500 flex flex-wrap justify-between items-center gap-2 text-xs"><div><strong class="text-amber-300">הודעה חשובה (${a.sender}):</strong> ${a.message} <span class="text-slate-400">[נקרא ע״י: ${a.ackBy || "אף אחד"}]</span></div><button type="button" onclick="ackAnnouncementId('${a.id}')" class="px-3 py-1 rounded-lg bg-emerald-600 text-white font-black">קראתי ✓</button></div>`).join("");
+      }
+
+      document.getElementById("pettyCashListBox").innerHTML = (appState.pettyCash || []).slice().reverse().map(p => `<div class="p-2.5 rounded-xl bg-[#07192b] border border-[#1b3a5c] flex justify-between"><span><strong>${p.date}</strong> • ${p.purpose} (${p.sellerName || "-"})</span><strong class="text-sky-400 tabular-nums">${Number(p.amount).toLocaleString()} ₪</strong></div>`).join("") || '<div class="text-slate-400">אין הוצאות קופה קטנה</div>';
+      document.getElementById("attendanceListBox").innerHTML = (appState.attendance || []).slice().reverse().map(a => `<div class="p-2.5 rounded-xl bg-[#07192b] border border-[#1b3a5c] flex justify-between"><span><strong>${a.date}</strong> • ${a.employee} (${a.clockIn}–${a.clockOut || "פעיל"})</span><span class="text-emerald-400 font-bold">${a.gpsStatus || ""}</span></div>`).join("") || '<div class="text-slate-400">אין רשומות נוכחות</div>';
+      document.getElementById("staffShiftsListBox").innerHTML = (appState.shifts || []).map(s => {
+        const isOpen = String(s.status).includes("פנוי");
+        return `<div class="p-2.5 rounded-xl bg-[#07192b] border border-[#1b3a5c] flex justify-between items-center"><span><strong>${s.date}</strong> (${s.startTime}–${s.endTime}) • <strong>${s.employee || "משמרת פנויה"}</strong> [${s.status}]</span>${isOpen ? `<button type="button" onclick="claimOpenShift('${s.id}')" class="px-3 py-1 rounded-lg bg-emerald-600 text-white font-bold">תפוס משמרת</button>` : ""}</div>`;
+      }).join("") || '<div class="text-slate-400">אין משמרות להצגה</div>';
+      document.getElementById("handoverListBox").innerHTML = (appState.handovers || []).slice().reverse().map(h => `<div class="p-2.5 rounded-xl bg-[#07192b] border border-[#1b3a5c]"><strong>${h.timestamp}</strong> • ${h.fromSeller || "-"} → ${h.toTarget || "-"}: ${h.note}</div>`).join("") || '<div class="text-slate-400">אין מסירות משמרת</div>';
+      document.getElementById("issuesListBox").innerHTML = (appState.issues || []).slice().reverse().map(i => `<div class="p-2.5 rounded-xl bg-[#07192b] border border-[#1b3a5c] flex justify-between"><span><strong class="text-amber-300">[${i.kind}]</strong> ${i.description} (${i.reporter || "-"})</span><span class="font-bold">${i.status}</span></div>`).join("") || '<div class="text-slate-400">אין דיווחים</div>';
+      document.getElementById("staffMessagesListBox").innerHTML = (appState.announcements || []).slice().reverse().map(m => `<div class="p-2.5 rounded-xl bg-[#07192b] border border-[#1b3a5c]"><strong>${m.sender}</strong> ← ${m.recipient}: ${m.message} <span class="text-[10px] text-slate-400">(${m.timestamp})</span></div>`).join("") || '<div class="text-slate-400">אין הודעות</div>';
+
+      if (appState.roleMode === "manager") renderManagerPane();
+    }
+
+    function showStaffTab(t) {
+      appState.activeStaffTab = t;
+      document.querySelectorAll(".staff-tab-pane").forEach(p => p.classList.toggle("hidden", appState.roleMode === "manager" || p.id !== "stab-" + t));
+      document.querySelectorAll("#staffSidebarNav .sub-pill").forEach(b => b.classList.toggle("active", b.id === "snav-" + t));
+    }
+
+    function setRoleMode(mode) {
+      if (mode === "staff") {
+        appState.roleMode = "staff";
+        document.body.classList.remove("mgr-mode");
+        document.getElementById("staffSidebarNav").classList.remove("hidden");
+        document.getElementById("panelMgrSection").classList.add("hidden");
+        document.getElementById("btnModeStaff").className = "px-2.5 py-1 rounded-lg btn-primary";
+        document.getElementById("btnModeManager").className = "px-2.5 py-1 rounded-lg text-slate-300";
+        showStaffTab(appState.activeStaffTab);
+        return;
+      }
+      document.getElementById("mgrPinInp").value = "";
+      document.getElementById("pinPromptModal").classList.remove("hidden");
+      setTimeout(() => document.getElementById("mgrPinInp").focus(), 50);
+    }
+
+    async function submitMgrPin() {
+      const pin = document.getElementById("mgrPinInp").value.trim();
+      if (!pin) return;
+      const res = await dispatchAction({ action: "verifyPin", role: "manager", pin });
+      if (res && res.ok) {
+        document.getElementById("pinPromptModal").classList.add("hidden");
+        appState.roleMode = "manager";
+        document.body.classList.add("mgr-mode");
+        document.getElementById("staffSidebarNav").classList.add("hidden");
+        document.getElementById("panelMgrSection").classList.remove("hidden");
+        document.getElementById("btnModeManager").className = "px-2.5 py-1 rounded-lg btn-primary";
+        document.getElementById("btnModeStaff").className = "px-2.5 py-1 rounded-lg text-slate-300";
+        fetchStoreData();
+      } else {
+        showToast("קוד מנהל שגוי");
+      }
+    }
+
+    function showMgrSub(sub) {
+      appState.activeMgrSub = sub;
+      document.querySelectorAll(".mgr-sub-pane").forEach(p => p.classList.toggle("hidden", p.id !== "mgrPane-" + sub));
+      document.querySelectorAll("#panelMgrSection .sub-pill").forEach(b => b.classList.toggle("active", b.id === "mtab-" + sub));
+      renderManagerPane();
+    }
+
+    const COLS_META = [
+      { key: "date", label: "תאריך" }, { key: "branch", label: "סניף" }, { key: "seller", label: "מוכר" },
+      { key: "env", label: "מעטפה" }, { key: "petty", label: "קופה קטנה" }, { key: "diff", label: "הפרש" },
+      { key: "total", label: "סה״כ" }, { key: "approved", label: "אושר" }
+    ];
+
+    function buildColToggles() {
+      const box = document.getElementById("closingsColToggles");
+      if (!box) return;
+      box.innerHTML = COLS_META.map(c => `<label class="inline-flex items-center gap-1 cursor-pointer font-bold"><input type="checkbox" ${appState.visibleCols[c.key] !== false ? "checked" : ""} onchange="toggleTableCol('${c.key}', this.checked)" /><span>${c.label}</span></label>`).join("");
+      applyColVisibility();
+    }
+
+    function toggleTableCol(key, vis) {
+      appState.visibleCols[key] = vis;
+      sSet(COLS_PREF_KEY, JSON.stringify(appState.visibleCols));
+      applyColVisibility();
+    }
+
+    function applyColVisibility() {
+      const tbl = document.getElementById("mgrClosingsTable");
+      if (!tbl) return;
+      COLS_META.forEach(c => {
+        const hide = appState.visibleCols[c.key] === false;
+        tbl.querySelectorAll(`[data-col="${c.key}"]`).forEach(el => el.classList.toggle("hidden", hide));
+      });
+    }
+
+    function renderManagerPane() {
+      const body = document.getElementById("mgrClosingsBody");
+      if (body) {
+        body.innerHTML = (appState.closings || []).slice().reverse().map(c => `<tr>
+          <td data-label="תאריך" data-col="date" class="py-2 font-bold">${c.date}</td>
+          <td data-label="סניף" data-col="branch">${c.branchId} (${c.register})</td>
+          <td data-label="מוכר" data-col="seller">${c.sellerName || "-"}</td>
+          <td data-label="מעטפה" data-col="env" class="text-emerald-400 font-bold tabular-nums">${Number(c.envelopeCash).toLocaleString()} ₪</td>
+          <td data-label="קופה קטנה" data-col="petty" class="text-sky-400 tabular-nums">${Number(c.pettyCash).toLocaleString()} ₪</td>
+          <td data-label="הפרש" data-col="diff" class="font-bold tabular-nums">${Number(c.diff).toLocaleString()} ₪</td>
+          <td data-label="סה״כ" data-col="total" class="font-black tabular-nums">${Number(c.totalSales).toLocaleString()} ₪</td>
+          <td data-label="אושר" data-col="approved" class="text-center"><input type="checkbox" ${c.approved ? "checked" : ""} onchange="toggleApproval(${c.rowNumber}, this.checked)" /></td>
+        </tr>`).join("") || '<tr><td colspan="8" class="py-4 text-center text-slate-400">אין סגירות</td></tr>';
+        applyColVisibility();
+      }
+
+      document.getElementById("mgrShiftsApprovalsBox").innerHTML = (appState.shifts || []).map(s => {
+        const pending = String(s.status).includes("ממתין");
+        return `<div class="p-2.5 rounded-xl bg-[#051321] border border-[#1b3a5c] flex justify-between items-center"><span><strong>${s.date}</strong> (${s.startTime}–${s.endTime}) • <strong>${s.employee || "פנוי"}</strong> [${s.status}]</span>${pending ? `<button type="button" onclick="approveClaim('${s.id}')" class="px-3 py-1 rounded-lg bg-emerald-600 text-white font-bold">אשר משמרת ✓</button>` : ""}</div>`;
+      }).join("");
+
+      document.getElementById("mgrPane-staff").innerHTML = (appState.staff || []).map(st => `<div class="p-2.5 rounded-xl bg-[#051321] border border-[#1b3a5c] flex justify-between"><span><strong>${st.name}</strong> (${st.category}) • ${st.phone || "ללא טלפון"}</span>${st.phone ? `<a href="https://wa.me/${st.phone.replace(/[^0-9]/g, "")}" target="_blank" class="text-emerald-400 font-bold">וואטסאפ</a>` : ""}</div>`).join("") || '<div class="text-slate-400">אין עובדים רשומים</div>';
+      document.getElementById("mgrPane-issues").innerHTML = (appState.issues || []).map(i => `<div class="p-2.5 rounded-xl bg-[#051321] border border-[#1b3a5c] flex justify-between"><span><strong>[${i.kind}]</strong> ${i.description} (${i.status})</span>${i.status !== "טופל" ? `<button type="button" onclick="resolveIssue('${i.id}')" class="px-2.5 py-1 rounded bg-emerald-600 text-white font-bold">טופל ✓</button>` : ""}</div>`).join("") || '<div class="text-slate-400">אין חוסרים ותקלות</div>';
+      document.getElementById("mgrAnnouncementsStatusBox").innerHTML = (appState.announcements || []).slice().reverse().map(a => `<div class="p-2.5 rounded-xl bg-[#051321] border border-[#1b3a5c]"><strong>${a.message}</strong> <span class="text-slate-400">• נקרא ע״י: ${a.ackBy || "טרם נקרא"}</span></div>`).join("");
+    }
+
+    async function toggleApproval(rowNumber, val) { await dispatchAction({ action: "toggleEodApproval", pin: document.getElementById("mgrPinInp").value, rowNumber, value: val, branchId: appState.branchId }); }
+    async function unlockSelectedDate() { const d = isoToIsraeli(document.getElementById("unlockDateInp").value); if (!d) return showToast("בחר תאריך"); await dispatchAction({ action: "unlockEodDay", pin: document.getElementById("mgrPinInp").value, date: d, branchId: appState.branchId }); showToast("היום נפתח לעריכה ✓"); fetchStoreData(); }
+    async function createShiftSlot() { const d = isoToIsraeli(document.getElementById("newShiftDate").value); if (!d) return showToast("בחר תאריך"); const emp = document.getElementById("newShiftEmp").value.trim(); await dispatchAction({ action: "saveShiftOrClaim", date: d, branchId: appState.branchId, employeeName: emp, startTime: document.getElementById("newShiftStart").value, endTime: document.getElementById("newShiftEnd").value, status: emp ? "משובץ" : "פנוי לתפיסה" }); showToast("המשמרת נוספה ✓"); fetchStoreData(); }
+    async function approveClaim(shiftId) { await dispatchAction({ action: "approveShiftClaim", pin: document.getElementById("mgrPinInp").value, shiftId, approved: true }); showToast("המשמרת אושרה ✓"); fetchStoreData(); }
+    async function resolveIssue(id) { await dispatchAction({ action: "resolveIssueOrShortage", id, status: "טופל" }); showToast("סומן כטופל ✓"); fetchStoreData(); }
+    async function publishAnnouncement() { const msg = document.getElementById("annTextInp").value.trim(); if (!msg) return; await dispatchAction({ action: "addAnnouncement", branchId: appState.branchId, sender: document.getElementById("annSenderInp").value.trim() || "מנהל סניף", recipient: document.getElementById("annRecipientInp").value.trim() || "כולם", mustAck: document.getElementById("annMustAckChk").checked, message: msg }); document.getElementById("annTextInp").value = ""; showToast("ההודעה פורסמה ✓"); fetchStoreData(); }
+
+    function promptScriptUrl() { const u = prompt("הזן כתובת Web App:", appState.scriptUrl); if (u && u.startsWith("https://")) { appState.scriptUrl = u.trim(); sSet("store_script_url", appState.scriptUrl); fetchStoreData(); } }
+    function toggleTheme() { const next = (document.documentElement.dataset.theme || "dark") === "dark" ? "light" : "dark"; document.documentElement.dataset.theme = next; sSet("store-color-scheme", next); }
+    function setLoading(on) { document.getElementById("topLoadingBar").classList.toggle("active", Boolean(on)); }
+    function showToast(msg) { const t = document.getElementById("toastBar"); t.textContent = msg; t.classList.remove("hidden"); clearTimeout(window._tt); window._tt = setTimeout(() => t.classList.add("hidden"), 3000); }
+  </script>
+</body>
+</html>
