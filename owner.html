@@ -1,0 +1,657 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl" translate="no" class="notranslate">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="google" content="notranslate" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>דשבורד בעלים — ניהול רשת וסניפים</title>
+  <meta name="color-scheme" content="light dark" />
+  <meta name="theme-color" content="#0b192c" />
+  <script>
+    (function () {
+      try {
+        var saved = localStorage.getItem("store-color-scheme");
+        var sysDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+        var resolved = (saved === "light" || saved === "dark") ? saved : (sysDark ? "dark" : "light");
+        document.documentElement.dataset.theme = resolved;
+        if (saved === "light" || saved === "dark") document.documentElement.style.colorScheme = saved;
+      } catch (e) {}
+    })();
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;700;800;900&display=swap" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="brand-config.js"></script>
+  <style>
+    :root {
+      --brand-primary: #ea580c;
+      --brand-accent: #0284c7;
+      --radius-card: 16px;
+      --radius-control: 12px;
+    }
+    body {
+      font-family: 'Heebo', sans-serif; min-height: 100dvh; overflow-x: clip;
+      padding-bottom: calc(5.5rem + env(safe-area-inset-bottom)) !important;
+      background-color: light-dark(#f1f5f9, #0b192c) !important;
+      color: light-dark(#0f172a, #f8fafc) !important;
+    }
+    .card {
+      background: light-dark(#ffffff, #13253e);
+      border: 1px solid light-dark(#cbd5e1, #1e3a5f);
+      border-radius: var(--radius-card);
+      box-shadow: 0 1px 2px rgba(15,23,42,0.06), 0 8px 24px -12px rgba(15,23,42,0.16);
+    }
+    .input-dark {
+      background: light-dark(#f8fafc, #091322);
+      border: 1px solid light-dark(#cbd5e1, #26466d);
+      color: light-dark(#0f172a, #ffffff);
+      border-radius: var(--radius-control); padding: 0.5rem 0.75rem; min-height: 38px;
+    }
+    .input-dark:focus { outline: none; border-color: var(--brand-primary); box-shadow: 0 0 0 3px rgba(234,88,12,0.2); }
+    .btn-primary { background: linear-gradient(135deg, var(--brand-primary) 0%, #c2410c 100%); color: #fff !important; }
+    .btn-secondary {
+      background: light-dark(#f1f5f9, #1e293b); color: light-dark(#0f172a, #f8fafc);
+      border: 1px solid light-dark(#cbd5e1, #475569); border-radius: 12px; padding: 0.45rem 0.9rem; font-size: 0.78rem; font-weight: 700;
+    }
+    .seg-btn { padding: 0.38rem 0.75rem; border-radius: 10px; font-size: 0.75rem; font-weight: 800; color: #64748b; cursor: pointer; }
+    .seg-btn.active { background: var(--brand-primary); color: #fff !important; }
+    .owner-nav-btn { padding: 0.65rem 0.85rem; border-radius: 12px; font-size: 0.8rem; font-weight: 800; text-align: right; cursor: pointer; }
+    .owner-nav-btn.active { background: rgba(234,88,12,0.14); color: var(--brand-primary); box-shadow: inset 0 0 0 1px rgba(234,88,12,0.35); }
+    .tabular-nums { font-variant-numeric: tabular-nums; }
+
+    @media (max-width: 767px) {
+      .responsive-table thead { display: none; }
+      .responsive-table tr { display: block; border: 1px solid light-dark(#cbd5e1, #26466d); border-radius: 12px; padding: 0.6rem; margin-bottom: 0.5rem; }
+      .responsive-table td { display: flex; justify-content: space-between; align-items: center; padding: 0.22rem 0 !important; border: none !important; }
+      .responsive-table td::before { content: attr(data-label); font-weight: 800; color: #64748b; margin-left: 0.5rem; }
+    }
+
+    @media (min-width: 1024px) {
+      #ownerSideNav {
+        position: fixed; top: 74px; right: 0; bottom: 0; width: 240px;
+        display: flex; flex-direction: column; gap: 0.4rem; padding: 1rem 0.8rem;
+        border-left: 1px solid light-dark(#cbd5e1, #1e3a5f); background: light-dark(#ffffff, #0b192c);
+        overflow-y: auto; z-index: 25;
+      }
+      main { margin-right: 240px; max-width: min(1140px, calc(100% - 240px)); }
+    }
+  </style>
+</head>
+<body>
+  <header class="sticky top-0 z-30 border-b border-slate-200 dark:border-[#1e3a5f] bg-white/90 dark:bg-[#0b192c]/90 backdrop-blur-md px-3 py-2.5 shadow">
+    <div class="flex flex-wrap items-center justify-between gap-2">
+      <div class="flex items-center gap-2.5">
+        <img id="ownLogoImg" src="logo.png" alt="Logo" class="h-11 w-auto rounded-xl object-contain" />
+        <div>
+          <h1 id="ownBrandTitle" class="text-sm sm:text-base font-black">דשבורד בעלים</h1>
+          <div id="liveDayStatusPill" class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/40 text-emerald-700 dark:text-emerald-300 text-[11px] font-extrabold mt-0.5">
+            סטטוס יום: טוען...
+          </div>
+        </div>
+      </div>
+
+      <div class="flex flex-wrap items-center gap-1.5">
+        <select id="branchScopeSelect" onchange="onBranchScopeChange()" class="input-dark text-xs font-black py-1 !min-h-[34px]"></select>
+        <input id="monthScopeInput" type="month" onchange="renderAllOwner()" class="input-dark text-xs font-bold py-1 !min-h-[34px]" />
+        <button type="button" onclick="exportAccountantReport()" class="btn-secondary !py-1.5 !px-2.5 !text-xs">ייצוא לרו״ח</button>
+        <button type="button" onclick="toggleTheme()" class="btn-secondary !py-1.5 !px-2.5 !text-xs">בהיר/כהה</button>
+        <button type="button" onclick="fetchOwnerState()" class="px-3 py-1.5 rounded-xl btn-primary text-xs font-black">רענן</button>
+      </div>
+    </div>
+  </header>
+
+  <nav id="ownerSideNav" class="flex overflow-x-auto gap-1 p-2 border-b border-slate-200 dark:border-[#1e3a5f] bg-white dark:bg-[#0b192c]">
+    <button type="button" onclick="showOwnerSec('dashboard')" id="onav-dashboard" class="owner-nav-btn active whitespace-nowrap">1. גרפים והפקדות</button>
+    <button type="button" onclick="showOwnerSec('closings')" id="onav-closings" class="owner-nav-btn whitespace-nowrap">2. מעטפות ובנק</button>
+    <button type="button" onclick="showOwnerSec('payroll')" id="onav-payroll" class="owner-nav-btn whitespace-nowrap">3. שעות ועלות שכר</button>
+    <button type="button" onclick="showOwnerSec('modules')" id="onav-modules" class="owner-nav-btn whitespace-nowrap">4. סניפים ומתגי פיצ׳רים</button>
+  </nav>
+
+  <!-- מסך נעילת קוד בעלים -->
+  <div id="ownerLockScreen" class="max-w-sm mx-auto mt-10 px-4">
+    <div class="card p-5 space-y-3 text-center">
+      <h2 class="text-base font-black">כניסת בעלים</h2>
+      <p class="text-xs text-slate-500 dark:text-slate-400">הזן קוד בעלים לאימות מול השרת</p>
+      <input id="ownerPinInput" type="password" inputmode="numeric" placeholder="••••" class="input-dark w-full text-center text-xl font-black" onkeydown="if(event.key==='Enter') unlockOwnerDashboard()" />
+      <button type="button" onclick="unlockOwnerDashboard()" class="w-full py-2.5 rounded-xl btn-primary text-xs font-black">כניסה לדשבורד</button>
+    </div>
+  </div>
+
+  <main id="ownerMainContent" class="hidden max-w-5xl mx-auto px-3 pt-4 space-y-4">
+    <!-- 1. דשבורד 3 תתי-טאבים: יעד והפקדות | גרפים ומגמות | דיוק קופה לפי עובד -->
+    <section id="osec-dashboard" class="owner-sec space-y-4">
+      <div class="card p-3 flex flex-wrap items-center justify-between gap-2">
+        <div class="flex items-center gap-1 bg-slate-100 dark:bg-[#091322] p-1 rounded-xl border border-slate-200 dark:border-[#26466d]">
+          <button type="button" id="dsub-goals" onclick="switchDashSub('goals')" class="seg-btn active">יעד והפקדות</button>
+          <button type="button" id="dsub-charts" onclick="switchDashSub('charts')" class="seg-btn">גרפים ומגמות</button>
+          <button type="button" id="dsub-accuracy" onclick="switchDashSub('accuracy')" class="seg-btn">דיוק קופה לפי עובד</button>
+        </div>
+        <div id="colsToggleDash" class="flex flex-wrap items-center gap-2 text-xs"></div>
+      </div>
+
+      <div id="dpane-goals" class="space-y-3">
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+          <div class="card p-3"><div class="text-[11px] text-slate-500">סה״כ פדיון חודשי</div><div id="kpiRev" class="text-lg font-black text-orange-500 tabular-nums mt-0.5">0 ₪</div></div>
+          <div class="card p-3"><div class="text-[11px] text-slate-500">יעד חודשי / יומי פעיל</div><div id="kpiTargetInfo" class="text-sm font-black text-sky-500 tabular-nums mt-1">0 / 0 ₪</div></div>
+          <div class="card p-3"><div class="text-[11px] text-slate-500">מזומן ממתין להפקדה</div><div id="kpiCashToDeposit" class="text-lg font-black text-emerald-500 tabular-nums mt-0.5">0 ₪</div></div>
+          <div class="card p-3"><div class="text-[11px] text-slate-500">הופקד לבנק (מסומן ✓)</div><div id="kpiDepositedSum" class="text-lg font-black text-indigo-400 tabular-nums mt-0.5">0 ₪</div></div>
+        </div>
+        <div class="card p-4">
+          <div class="flex justify-between text-xs font-bold mb-1"><span>התקדמות מול יעד חודשי</span><span id="targetPctLbl" class="tabular-nums">0%</span></div>
+          <div class="w-full h-2.5 rounded-full bg-slate-200 dark:bg-[#091322] overflow-hidden"><div id="targetBarFill" class="h-full bg-orange-500 rounded-full" style="width:0%"></div></div>
+        </div>
+      </div>
+
+      <div id="dpane-charts" class="hidden card p-4 space-y-3">
+        <h3 class="text-sm font-black">פדיון יומי (מזומן + קופה קטנה + אמצעי תשלום)</h3>
+        <div id="dailyBarsChart" class="space-y-2 text-xs"></div>
+      </div>
+
+      <div id="dpane-accuracy" class="hidden card p-4">
+        <h3 class="text-sm font-black mb-2">דיוק קופה לפי עובד</h3>
+        <div class="overflow-x-auto">
+          <table class="w-full text-xs text-right responsive-table">
+            <thead><tr class="border-b border-slate-200 dark:border-[#1e3a5f] text-slate-500"><th class="py-2">עובד</th><th>סגירות</th><th>מדויקות (0 ₪)</th><th>אחוז דיוק</th><th>הפרש מצטבר</th></tr></thead>
+            <tbody id="accuracyBody" class="divide-y divide-slate-200 dark:divide-[#1e3a5f]"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- 2. מעטפות, סימון הפקדות לבנק ✓, הוצאות וייצוא רו"ח -->
+    <section id="osec-closings" class="owner-sec hidden space-y-4">
+      <div class="card p-4 space-y-3">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <h2 class="text-base font-black">סגירות קופה ומעקב הפקדות מעטפות לבנק (✓)</h2>
+          <div id="colsToggleClosings" class="flex flex-wrap items-center gap-2 text-xs"></div>
+        </div>
+        <div class="overflow-x-auto">
+          <table id="ownerClosingsTable" class="w-full text-xs text-right responsive-table">
+            <thead><tr class="border-b border-slate-200 dark:border-[#1e3a5f] text-slate-500"><th data-col="date" class="py-2">תאריך</th><th data-col="branch">סניף</th><th data-col="seller">מוכר</th><th data-col="env">מעטפה</th><th data-col="petty">קופה קטנה</th><th data-col="diff">הפרש</th><th data-col="total">סה״כ</th><th data-col="approved">אושר</th><th data-col="deposited">הופקד בבנק ✓</th></tr></thead>
+            <tbody id="ownerClosingsBody" class="divide-y divide-slate-200 dark:divide-[#1e3a5f]"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div id="accountantExportCard" class="card p-4 space-y-2 hidden">
+        <div class="flex justify-between items-center"><h3 class="text-sm font-black text-emerald-400">סיכום ייצוא חודשי לרואה חשבון</h3><button type="button" onclick="downloadAccountantCsv()" class="btn-secondary !py-1 !px-2.5 !text-xs">הורד CSV לרו״ח</button></div>
+        <pre id="accountantPreviewBox" class="p-3 rounded-xl bg-slate-100 dark:bg-[#091322] text-[11px] overflow-x-auto whitespace-pre-wrap"></pre>
+      </div>
+    </section>
+
+    <!-- 3. שעות עובדים + מחשבון עלות שכר חודשית (מעביד מלא מול בסיסי/נטו) -->
+    <section id="osec-payroll" class="owner-sec hidden space-y-4">
+      <div class="card p-4 space-y-3">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h2 class="text-base font-black">שעות עובדים ומחשבון עלות שכר חודשית</h2>
+            <p class="text-xs text-slate-500">תחזית עלות שכר חודשית לפי שעות ושכר שעתי</p>
+          </div>
+          <div class="flex items-center gap-1 bg-slate-100 dark:bg-[#091322] p-1 rounded-xl border border-slate-200 dark:border-[#26466d]">
+            <button type="button" id="payModeEmployer" onclick="setPayrollMode('employer')" class="seg-btn active">עלות מעביד מלאה</button>
+            <button type="button" id="payModeBase" onclick="setPayrollMode('base')" class="seg-btn">בסיסי / נטו</button>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs">
+          <div><label class="block font-bold mb-1">מכפיל עלות מעביד (פנסיה, פיצויים, ב״ל, נסיעות)</label><input id="employerMultInput" type="number" step="0.01" value="1.32" oninput="renderPayrollCalc()" class="input-dark w-full font-black text-center" /></div>
+          <div class="card p-3"><div class="text-slate-500">סה״כ שעות החודש</div><div id="payTotalHoursLbl" class="text-lg font-black text-sky-500 tabular-nums">0 שע׳</div></div>
+          <div class="card p-3"><div class="text-slate-500">עלות שכר חודשית צפויה</div><div id="payTotalCostLbl" class="text-lg font-black text-emerald-500 tabular-nums">0 ₪</div></div>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-xs text-right responsive-table">
+            <thead><tr class="border-b border-slate-200 dark:border-[#1e3a5f] text-slate-500"><th class="py-2">עובד</th><th>קטגוריה</th><th>שעות</th><th>שכר שעתי</th><th>עלות מחושבת</th></tr></thead>
+            <tbody id="payrollBody" class="divide-y divide-slate-200 dark:divide-[#1e3a5f]"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- 4. סניפים + מתגי הפעלה/כיבוי של כל התוספות והפיצ'רים -->
+    <section id="osec-modules" class="owner-sec hidden space-y-4">
+      <div class="card p-4 space-y-3">
+        <h2 class="text-base font-black">ניהול חברה וסניפים (תמיכה בריבוי סניפים)</h2>
+        <div class="grid grid-cols-1 sm:grid-cols-4 gap-2">
+          <input id="cfgBrandNameInp" type="text" placeholder="שם העסק / החברה" class="input-dark text-xs font-bold" />
+          <input id="newBranchNameInp" type="text" placeholder="שם סניף חדש (למשל: סניף צפון)" class="input-dark text-xs font-bold" />
+          <input id="newBranchRegsInp" type="text" value="קופה 1" placeholder="קופות (מופרדות בפסיק)" class="input-dark text-xs" />
+          <button type="button" onclick="addNewBranchItem()" class="px-4 py-2 rounded-xl bg-sky-600 text-white text-xs font-black">+ הוסף סניף</button>
+        </div>
+        <div id="branchesListBox" class="flex flex-wrap gap-2 text-xs"></div>
+      </div>
+
+      <div class="card p-4 space-y-3">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h2 class="text-base font-black text-orange-500">מתגי הפעלה וכיבוי של תוספות ופיצ׳רים</h2>
+            <p class="text-xs text-slate-500">בחר אילו מודולים ותוספות יופיעו ויעבדו במערכת</p>
+          </div>
+          <button type="button" onclick="saveAllOwnerConfig()" class="px-5 py-2.5 rounded-xl btn-primary text-xs font-black">שמור הגדרות ומודולים ✓</button>
+        </div>
+        <div id="featureTogglesGrid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5 text-xs"></div>
+      </div>
+    </section>
+  </main>
+
+  <div id="ownToast" class="hidden fixed bottom-5 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-full bg-emerald-600 text-white text-xs font-bold shadow-xl"></div>
+  <script>
+    const _ownMem = {};
+    function oGet(k, def = null) {
+      try { const v = window.localStorage.getItem(k); return v !== null ? v : def; }
+      catch (e) { return _ownMem[k] !== undefined ? _ownMem[k] : def; }
+    }
+    function oSet(k, v) {
+      try { window.localStorage.setItem(k, String(v)); }
+      catch (e) { _ownMem[k] = String(v); }
+    }
+
+    const DEFAULT_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbyuHKs-w1Vngfw6Vu4V5SqXSJ4oaKqqIRCmpLCfXDE-etrYq3acKHBKKn16ebES2gp6/exec";
+    const OWN_COLS_KEY = "store_owner_cols_v1";
+
+    const MODULE_LABELS = [
+      { key: "eodClosing", label: "סגירת קופה בסוף יום (Z + מעטפה)" },
+      { key: "cashCalculator", label: "מחשבון ספירת שטרות ומטבעות" },
+      { key: "splitPayments", label: "פיצול אמצעי תשלום (ביט, שוברים, העברה, זיכויים)" },
+      { key: "pettyCash", label: "קופה קטנה מהמגירה + צילום קבלה" },
+      { key: "attendanceGps", label: "שעון נוכחות עובדים + אימות GPS" },
+      { key: "shiftSchedule", label: "לוח משמרות חודשי ופיצול משמרות" },
+      { key: "shiftClaiming", label: "תפיסת משמרות פנויות ע״י עובדים" },
+      { key: "shiftHandover", label: "מסירת משמרת (Shift Handover)" },
+      { key: "announcements", label: "הודעות חובה מהמנהל/בעלים (קראתי ✓)" },
+      { key: "shortagesAndFaults", label: "דיווח חוסרים במלאי ותקלות" },
+      { key: "suppliersAndCatalog", label: "ניהול ספקים, מוצרים והזמנות" },
+      { key: "bankDeposits", label: "מעקב הפקדות בנק וסימון מעטפות ✓" },
+      { key: "expenses", label: "ניהול הוצאות קבועות ומשתנות" },
+      { key: "payrollCalculator", label: "מחשבון עלות שכר חודשית (מעביד/נטו)" },
+      { key: "accountantExport", label: "ייצוא חודשי בלחיצה לרואה חשבון" },
+      { key: "offlineQueue", label: "שמירה ללא אינטרנט (Offline Queue)" }
+    ];
+
+    const OWN_COLS_META = [
+      { key: "date", label: "תאריך" }, { key: "branch", label: "סניף" }, { key: "seller", label: "מוכר" },
+      { key: "env", label: "מעטפה" }, { key: "petty", label: "קופה קטנה" }, { key: "diff", label: "הפרש" },
+      { key: "total", label: "סה״כ" }, { key: "approved", label: "אושר" }, { key: "deposited", label: "הופקד ✓" }
+    ];
+
+    let ownState = {
+      scriptUrl: oGet("store_script_url") || (window.STORE_BRAND_CONFIG && window.STORE_BRAND_CONFIG.scriptUrl) || DEFAULT_WEB_APP_URL,
+      pin: oGet("store_owner_pin_session") || "",
+      branchScope: oGet("store_owner_branch_scope") || "ALL",
+      payrollMode: "employer",
+      config: Object.assign({
+        brandName: "החנות שלי",
+        logoUrl: "logo.png",
+        primaryColor: "#ea580c",
+        monthlyTarget: 75000,
+        branches: [{ id: "main", name: "סניף ראשי", registers: ["קופה 1"], lat: "", lng: "", radiusMeters: 150 }],
+        modules: {}
+      }, window.STORE_BRAND_CONFIG || {}),
+      closings: [],
+      pettyCash: [],
+      attendance: [],
+      shifts: [],
+      issues: [],
+      staff: [],
+      finance: [],
+      lastAccountantData: null,
+      visibleCols: JSON.parse(oGet(OWN_COLS_KEY) || '{"date":true,"branch":true,"seller":true,"env":true,"petty":true,"diff":true,"total":true,"approved":true,"deposited":true}')
+    };
+
+    document.addEventListener("DOMContentLoaded", () => {
+      const now = new Date();
+      document.getElementById("monthScopeInput").value = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+      applyOwnerBrand();
+      buildOwnerColsToggles();
+      if (ownState.pin) {
+        document.getElementById("ownerPinInput").value = ownState.pin;
+        unlockOwnerDashboard(true);
+      }
+    });
+
+    function applyOwnerBrand() {
+      const cfg = ownState.config || {};
+      if (cfg.primaryColor) document.documentElement.style.setProperty("--brand-primary", cfg.primaryColor);
+      document.getElementById("ownBrandTitle").textContent = (cfg.brandName || "החנות שלי") + " — בעלים";
+      document.getElementById("cfgBrandNameInp").value = cfg.brandName || "החנות שלי";
+      if (cfg.logoUrl) document.getElementById("ownLogoImg").src = cfg.logoUrl;
+
+      const branches = Array.isArray(cfg.branches) && cfg.branches.length ? cfg.branches : [{ id: "main", name: "סניף ראשי", registers: ["קופה 1"] }];
+      const sel = document.getElementById("branchScopeSelect");
+      sel.innerHTML = `<option value="ALL" ${ownState.branchScope === "ALL" ? "selected" : ""}>כל הסניפים (סיכום רשת)</option>` +
+        branches.map(b => `<option value="${b.id}" ${b.id === ownState.branchScope ? "selected" : ""}>סניף: ${b.name}</option>`).join("");
+
+      const m = cfg.modules || {};
+      document.getElementById("onav-payroll")?.classList.toggle("hidden", m.payrollCalculator === false);
+      document.getElementById("dsub-goals")?.classList.toggle("hidden", m.bankDeposits === false);
+
+      renderBranchesAndModulesSettings();
+    }
+
+    function onBranchScopeChange() {
+      ownState.branchScope = document.getElementById("branchScopeSelect").value;
+      oSet("store_owner_branch_scope", ownState.branchScope);
+      fetchOwnerState();
+    }
+
+    async function unlockOwnerDashboard(silent = false) {
+      const pin = document.getElementById("ownerPinInput").value.trim();
+      if (!pin) return;
+      try {
+        const res = await fetch(ownState.scriptUrl + "?payload=" + encodeURIComponent(JSON.stringify({ action: "verifyPin", role: "owner", pin })));
+        const data = await res.json();
+        if (data && data.ok) {
+          ownState.pin = pin;
+          oSet("store_owner_pin_session", pin);
+          document.getElementById("ownerLockScreen").classList.add("hidden");
+          document.getElementById("ownerMainContent").classList.remove("hidden");
+          fetchOwnerState();
+        } else if (!silent) {
+          showOwnToast("קוד בעלים שגוי");
+        }
+      } catch (e) {
+        if (!silent) showOwnToast("שגיאת חיבור לשרת");
+      }
+    }
+
+    async function fetchOwnerState() {
+      try {
+        const res = await fetch(`${ownState.scriptUrl}?action=getState&branchId=${encodeURIComponent(ownState.branchScope)}&role=owner`);
+        const data = await res.json();
+        if (data && data.ok) {
+          if (data.config) {
+            ownState.config = Object.assign({}, ownState.config, data.config);
+            applyOwnerBrand();
+          }
+          ownState.closings = data.closings || [];
+          ownState.pettyCash = data.pettyCash || [];
+          ownState.attendance = data.attendance || [];
+          ownState.shifts = data.shifts || [];
+          ownState.issues = data.issues || [];
+          ownState.staff = data.staff || [];
+          ownState.finance = data.finance || [];
+          renderAllOwner();
+        }
+      } catch (e) { showOwnToast("שגיאה בטעינת נתונים"); }
+    }
+
+    function getSelectedMonthSuffix() {
+      const ym = document.getElementById("monthScopeInput").value; // YYYY-MM
+      if (!ym || !/^\d{4}-\d{2}$/.test(ym)) return "";
+      const [y, m] = ym.split("-");
+      return `/${m}/${y}`;
+    }
+
+    function renderAllOwner() {
+      const suf = getSelectedMonthSuffix();
+      const monthClosings = (ownState.closings || []).filter(c => !suf || String(c.date).endsWith(suf));
+      const monthAtt = (ownState.attendance || []).filter(a => !suf || String(a.date).endsWith(suf));
+
+      // תגית סטטוס יום חיה בראש המסך
+      const now = new Date();
+      const todayStr = `${String(now.getDate()).padStart(2, "0")}/${String(now.getMonth() + 1).padStart(2, "0")}/${now.getFullYear()}`;
+      const activeToday = (ownState.attendance || []).filter(a => a.date === todayStr && !a.clockOut).map(a => a.employee);
+      const closedToday = (ownState.closings || []).filter(c => c.date === todayStr).length;
+      const openIssues = (ownState.issues || []).filter(i => i.status !== "טופל").length;
+      document.getElementById("liveDayStatusPill").textContent =
+        `סטטוס היום (${todayStr}): ${activeToday.length ? "במשמרת: " + activeToday.join(", ") : "אין כניסת שעון פעילה"} • סגירות היום: ${closedToday} • חריגות פתוחות: ${openIssues}`;
+
+      // מדדי KPI ויעד
+      const totalRev = monthClosings.reduce((s, c) => s + (Number(c.totalSales) || 0), 0);
+      const target = Number(ownState.config.monthlyTarget) || 75000;
+      const pct = target > 0 ? Math.min(100, Math.round((totalRev / target) * 100)) : 0;
+      const activeDaysCount = Math.max(1, new Set(monthClosings.map(c => c.date)).size || 26);
+      const dailyTarget = Math.round(target / 26);
+
+      const approvedCash = monthClosings.filter(c => c.approved && !c.deposited).reduce((s, c) => s + (Number(c.envelopeCash) || 0), 0);
+      const depositedCash = monthClosings.filter(c => c.deposited).reduce((s, c) => s + (Number(c.envelopeCash) || 0), 0);
+
+      document.getElementById("kpiRev").textContent = Math.round(totalRev).toLocaleString() + " ₪";
+      document.getElementById("kpiTargetInfo").textContent = `${target.toLocaleString()} ₪ חודשי / ${dailyTarget.toLocaleString()} ₪ יומי`;
+      document.getElementById("kpiCashToDeposit").textContent = Math.round(approvedCash).toLocaleString() + " ₪";
+      document.getElementById("kpiDepositedSum").textContent = Math.round(depositedCash).toLocaleString() + " ₪";
+      document.getElementById("targetPctLbl").textContent = pct + "%";
+      document.getElementById("targetBarFill").style.width = pct + "%";
+
+      // גרף פדיון יומי
+      const byDate = {};
+      monthClosings.forEach(c => { byDate[c.date] = (byDate[c.date] || 0) + (Number(c.totalSales) || 0); });
+      const entries = Object.entries(byDate);
+      const maxVal = Math.max(1, ...entries.map(e => e[1]));
+      document.getElementById("dailyBarsChart").innerHTML = entries.length ? entries.map(([dt, val]) => `
+        <div class="space-y-1">
+          <div class="flex justify-between font-bold"><span>${dt}</span><span class="tabular-nums">${Math.round(val).toLocaleString()} ₪</span></div>
+          <div class="w-full h-2.5 rounded-full bg-slate-200 dark:bg-[#091322] overflow-hidden"><div class="h-full bg-orange-500 rounded-full" style="width:${Math.round((val / maxVal) * 100)}%"></div></div>
+        </div>
+      `).join("") : '<div class="text-slate-500">אין נתוני פדיון לחודש הנבחר</div>';
+
+      // דיוק קופה לפי עובד
+      const bySeller = {};
+      monthClosings.forEach(c => {
+        const name = c.sellerName || "לא צוין";
+        if (!bySeller[name]) bySeller[name] = { count: 0, exact: 0, diffSum: 0 };
+        bySeller[name].count++;
+        if (Math.abs(Number(c.diff) || 0) < 1) bySeller[name].exact++;
+        bySeller[name].diffSum += Number(c.diff) || 0;
+      });
+      document.getElementById("accuracyBody").innerHTML = Object.entries(bySeller).map(([name, st]) => `<tr>
+        <td data-label="עובד" class="py-2 font-bold">${name}</td>
+        <td data-label="סגירות" class="tabular-nums">${st.count}</td>
+        <td data-label="מדויקות" class="tabular-nums">${st.exact}</td>
+        <td data-label="אחוז דיוק" class="font-black text-emerald-500 tabular-nums">${Math.round((st.exact / st.count) * 100)}%</td>
+        <td data-label="הפרש מצטבר" class="font-bold tabular-nums">${Math.round(st.diffSum).toLocaleString()} ₪</td>
+      </tr>`).join("") || '<tr><td colspan="5" class="py-4 text-center text-slate-500">אין נתונים</td></tr>';
+
+      // טבלת מעטפות והפקדות לבנק ✓
+      const branchNameMap = {};
+      (ownState.config.branches || []).forEach(b => branchNameMap[b.id] = b.name);
+      document.getElementById("ownerClosingsBody").innerHTML = monthClosings.slice().reverse().map(c => `<tr>
+        <td data-label="תאריך" data-col="date" class="py-2 font-bold">${c.date}</td>
+        <td data-label="סניף" data-col="branch">${branchNameMap[c.branchId] || c.branchId} (${c.register})</td>
+        <td data-label="מוכר" data-col="seller">${c.sellerName || "-"}</td>
+        <td data-label="מעטפה" data-col="env" class="text-emerald-500 font-bold tabular-nums">${Number(c.envelopeCash).toLocaleString()} ₪</td>
+        <td data-label="קופה קטנה" data-col="petty" class="text-sky-500 tabular-nums">${Number(c.pettyCash).toLocaleString()} ₪</td>
+        <td data-label="הפרש" data-col="diff" class="font-bold tabular-nums">${Number(c.diff).toLocaleString()} ₪</td>
+        <td data-label="סה״כ" data-col="total" class="font-black tabular-nums">${Number(c.totalSales).toLocaleString()} ₪</td>
+        <td data-label="אושר" data-col="approved" class="text-center">${c.approved ? "✓" : "ממתין"}</td>
+        <td data-label="הופקד ✓" data-col="deposited" class="text-center"><input type="checkbox" ${c.deposited ? "checked" : ""} onchange="toggleDepositedFlag(${c.rowNumber}, this.checked)" /></td>
+      </tr>`).join("") || '<tr><td colspan="9" class="py-4 text-center text-slate-500">אין סגירות קופה</td></tr>';
+      applyOwnerColsVis();
+
+      renderPayrollCalc(monthAtt);
+    }
+
+    function renderPayrollCalc(monthAttOverride) {
+      const suf = getSelectedMonthSuffix();
+      const att = monthAttOverride || (ownState.attendance || []).filter(a => !suf || String(a.date).endsWith(suf));
+      const rateMap = {}, catMap = {};
+      (ownState.staff || []).forEach(s => { rateMap[s.name] = Number(s.hourlyRate) || 35; catMap[s.name] = s.category || "מוכרים"; });
+
+      const byEmp = {};
+      att.forEach(a => {
+        const name = a.employee || "עובד";
+        byEmp[name] = (byEmp[name] || 0) + (Number(a.hours) || 0);
+      });
+
+      const mult = ownState.payrollMode === "employer" ? (Number(document.getElementById("employerMultInput").value) || 1.32) : 1;
+      let totalHours = 0, totalCost = 0;
+
+      document.getElementById("payrollBody").innerHTML = Object.entries(byEmp).map(([name, hrs]) => {
+        const rate = rateMap[name] || 35;
+        const cost = Math.round(hrs * rate * mult);
+        totalHours += hrs;
+        totalCost += cost;
+        return `<tr>
+          <td data-label="עובד" class="py-2 font-bold">${name}</td>
+          <td data-label="קטגוריה">${catMap[name] || "מוכרים"}</td>
+          <td data-label="שעות" class="tabular-nums">${hrs.toFixed(2)} שע׳</td>
+          <td data-label="שכר שעתי" class="tabular-nums">${rate} ₪</td>
+          <td data-label="עלות" class="font-black text-emerald-500 tabular-nums">${cost.toLocaleString()} ₪</td>
+        </tr>`;
+      }).join("") || '<tr><td colspan="5" class="py-4 text-center text-slate-500">אין שעות נוכחות לחודש הנבחר</td></tr>';
+
+      document.getElementById("payTotalHoursLbl").textContent = totalHours.toFixed(1) + " שע׳";
+      document.getElementById("payTotalCostLbl").textContent = totalCost.toLocaleString() + " ₪";
+    }
+
+    function setPayrollMode(mode) {
+      ownState.payrollMode = mode;
+      document.getElementById("payModeEmployer").classList.toggle("active", mode === "employer");
+      document.getElementById("payModeBase").classList.toggle("active", mode === "base");
+      renderPayrollCalc();
+    }
+
+    function showOwnerSec(sec) {
+      document.querySelectorAll(".owner-sec").forEach(s => s.classList.toggle("hidden", s.id !== "osec-" + sec));
+      document.querySelectorAll(".owner-nav-btn").forEach(b => b.classList.toggle("active", b.id === "onav-" + sec));
+    }
+
+    function switchDashSub(sub) {
+      ["goals", "charts", "accuracy"].forEach(k => {
+        document.getElementById("dpane-" + k).classList.toggle("hidden", k !== sub);
+        document.getElementById("dsub-" + k).classList.toggle("active", k === sub);
+      });
+    }
+
+    function buildOwnerColsToggles() {
+      const box = document.getElementById("colsToggleClosings");
+      if (!box) return;
+      box.innerHTML = OWN_COLS_META.map(c => `<label class="inline-flex items-center gap-1 cursor-pointer font-bold"><input type="checkbox" ${ownState.visibleCols[c.key] !== false ? "checked" : ""} onchange="toggleOwnCol('${c.key}', this.checked)" /><span>${c.label}</span></label>`).join("");
+    }
+
+    function toggleOwnCol(k, vis) {
+      ownState.visibleCols[k] = vis;
+      oSet(OWN_COLS_KEY, JSON.stringify(ownState.visibleCols));
+      applyOwnerColsVis();
+    }
+
+    function applyOwnerColsVis() {
+      const tbl = document.getElementById("ownerClosingsTable");
+      if (!tbl) return;
+      OWN_COLS_META.forEach(c => {
+        const hide = ownState.visibleCols[c.key] === false;
+        tbl.querySelectorAll(`[data-col="${c.key}"]`).forEach(el => el.classList.toggle("hidden", hide));
+      });
+    }
+
+    async function toggleDepositedFlag(rowNumber, val) {
+      await postOwnerAction({ action: "toggleEodDeposited", rowNumber, value: val, branchId: ownState.branchScope });
+      showOwnToast(val ? "סומן כהופקד בבנק ✓" : "בוטל סימון הפקדה");
+      fetchOwnerState();
+    }
+
+    function renderBranchesAndModulesSettings() {
+      const brBox = document.getElementById("branchesListBox");
+      const branches = ownState.config.branches || [];
+      brBox.innerHTML = branches.map((b, idx) => `
+        <div class="px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-[#091322] border border-slate-300 dark:border-[#26466d] flex items-center gap-2 font-bold">
+          <span>${b.name} (${(b.registers || ["קופה 1"]).join(", ")})</span>
+          ${branches.length > 1 ? `<button type="button" onclick="removeBranchItem(${idx})" class="text-rose-500 font-black">✕</button>` : ""}
+        </div>
+      `).join("");
+
+      const mods = ownState.config.modules || {};
+      document.getElementById("featureTogglesGrid").innerHTML = MODULE_LABELS.map(m => `
+        <label class="p-3 rounded-xl bg-slate-50 dark:bg-[#091322] border border-slate-200 dark:border-[#26466d] flex items-center justify-between gap-2 cursor-pointer font-bold">
+          <span>${m.label}</span>
+          <input type="checkbox" data-mod-key="${m.key}" ${mods[m.key] !== false ? "checked" : ""} class="w-4 h-4 accent-orange-500" />
+        </label>
+      `).join("");
+    }
+
+    function addNewBranchItem() {
+      const name = document.getElementById("newBranchNameInp").value.trim();
+      if (!name) return showOwnToast("הזן שם סניף");
+      const regs = document.getElementById("newBranchRegsInp").value.split(",").map(s => s.trim()).filter(Boolean);
+      ownState.config.branches.push({
+        id: "br_" + Date.now(),
+        name,
+        registers: regs.length ? regs : ["קופה 1"],
+        lat: "",
+        lng: "",
+        radiusMeters: 150
+      });
+      document.getElementById("newBranchNameInp").value = "";
+      renderBranchesAndModulesSettings();
+    }
+
+    function removeBranchItem(idx) {
+      ownState.config.branches.splice(idx, 1);
+      renderBranchesAndModulesSettings();
+    }
+
+    async function saveAllOwnerConfig() {
+      const nextModules = {};
+      document.querySelectorAll("[data-mod-key]").forEach(chk => {
+        nextModules[chk.dataset.modKey] = chk.checked;
+      });
+      ownState.config.brandName = document.getElementById("cfgBrandNameInp").value.trim() || ownState.config.brandName;
+      ownState.config.modules = nextModules;
+
+      const res = await postOwnerAction({
+        action: "saveConfigAndModules",
+        config: { brandName: ownState.config.brandName },
+        branches: ownState.config.branches,
+        modules: nextModules
+      });
+      if (res && res.ok) {
+        applyOwnerBrand();
+        showOwnToast("הגדרות הסניפים והמודולים נשמרו ✓");
+      } else {
+        showOwnToast(res?.error || "שגיאה בשמירה");
+      }
+    }
+
+    async function exportAccountantReport() {
+      const ym = document.getElementById("monthScopeInput").value;
+      const [y, m] = ym.split("-");
+      const res = await postOwnerAction({ action: "exportAccountantMonth", monthKey: `${m}/${y}`, branchId: ownState.branchScope });
+      if (res && res.ok) {
+        ownState.lastAccountantData = res;
+        showOwnerSec("closings");
+        const card = document.getElementById("accountantExportCard");
+        card.classList.remove("hidden");
+        document.getElementById("accountantPreviewBox").textContent =
+          `דוח רו״ח לחודש ${res.monthKey} (${res.branchId === "ALL" ? "כל הסניפים" : res.branchId}):\n` +
+          `• סגירות קופה: ${res.closings.length}\n` +
+          `• קופה קטנה: ${res.pettyCash.length} קבלות\n` +
+          `• שורות נוכחות: ${res.attendance.length}`;
+      }
+    }
+
+    function downloadAccountantCsv() {
+      const d = ownState.lastAccountantData;
+      if (!d) return;
+      const rows = [["תאריך", "סניף", "קופה", "מזומן Z", "מעטפה", "קופה קטנה", "אשראי", "ביט/פייבוקס", "שוברים", "העברה", "זיכויים", "סה״כ פדיון", "קישור Z", "קישור מעטפה"]];
+      d.closings.forEach(c => rows.push([c.date, c.branchId, c.register, c.cashZ, c.envCash, c.pettyCash, c.credit, c.bitPaybox, c.vouchers, c.bankTransfer, c.refunds, c.totalSales, c.zUrl, c.envUrl]));
+      const csv = "\uFEFF" + rows.map(r => r.join(",")).join("\n");
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `accountant_${d.monthKey.replace("/", "-")}.csv`;
+      a.click();
+    }
+
+    async function postOwnerAction(payload) {
+      payload.pin = ownState.pin;
+      const res = await fetch(ownState.scriptUrl + "?payload=" + encodeURIComponent(JSON.stringify(payload)));
+      return await res.json();
+    }
+
+    function toggleTheme() {
+      const next = (document.documentElement.dataset.theme || "dark") === "dark" ? "light" : "dark";
+      document.documentElement.dataset.theme = next;
+      oSet("store-color-scheme", next);
+    }
+
+    function showOwnToast(msg) {
+      const t = document.getElementById("ownToast");
+      t.textContent = msg;
+      t.classList.remove("hidden");
+      clearTimeout(window._ot);
+      window._ot = setTimeout(() => t.classList.add("hidden"), 3000);
+    }
+  </script>
+</body>
+</html>
