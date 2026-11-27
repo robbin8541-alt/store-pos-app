@@ -35,3 +35,4 @@ window.STORE_BRAND_CONFIG = {
   // מתג ברירת מחדל להצגת סטטיסטיקות בכל הסניפים או סניף ספציפי
   defaultBranchView: "ALL" // "ALL" או מזהה סניף ספציפי
 };
+scriptUrl: "[https://script.google.com/macros/s/AKfycbyuHKs-w1Vngfw6Vu4V5SqXSJ4oaKqqIRCmpLCfXDE-etrYq3acKHBKKn16ebES2gp6/exec](https://script.google.com/macros/s/AKfycbyuHKs-w1Vngfw6Vu4V5SqXSJ4oaKqqIRCmpLCfXDE-etrYq3acKHBKKn16ebES2gp6/exec)"
